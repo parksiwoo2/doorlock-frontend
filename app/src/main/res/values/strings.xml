@@ -1,3 +1,23 @@
 <resources>
-    <string name="app_name">Doorlock</string>
+    <string name="app_name">BLE Relay</string>
+    <string name="setup_title">기기 연결 준비</string>
+    <string name="setup_preparing">최초 설정을 시작합니다…</string>
+    <string name="student_id_description">BLE로 전송할 학번 10자리를 입력해 주세요.</string>
+    <string name="student_id_hint">학번 10자리</string>
+    <string name="student_id_continue">저장하고 계속</string>
+    <string name="student_id_error">학번은 숫자 10자리여야 합니다.</string>
+    <string name="setup_retry">다시 시도</string>
+    <string name="setup_retry_description">설정을 계속하려면 다시 시도해 주세요.</string>
+    <string name="main_title">Doorlock</string>
+    <string name="main_placeholder">기본 페이지 영역입니다. 이후 실제 화면으로 교체할 수 있습니다.</string>
+    <string name="status_not_configured">상태: 설정 필요</string>
+    <string name="status_ready">상태: 백그라운드 감지 활성화됨</string>
+    <string name="status_waiting">상태: 동반 기기 선택 대기 중</string>
+    <string name="status_advertising">상태: 응답 신호 송출 중</string>
+    <string name="notification_channel_name">BLE Relay 상태</string>
+    <string name="notification_detected_title">BLE 신호 감지됨</string>
+    <string name="notification_detected_text">0312 신호를 받아 1111 광고를 시작합니다.</string>
+    <string name="notification_advertising_title">BLE 응답 신호 송출 중</string>
+    <string name="notification_advertising_text">학번을 담은 1111 서비스 UUID를 지속 송출하고 있습니다.</string>
+    <string name="stop_advertising">송출 중지</string>
 </resources>
