@@ -13,7 +13,10 @@ import android.os.Build
 import androidx.core.app.ActivityCompat
 
 object BleScanRegistrar {
-    fun register(context: Context): RegistrationResult {
+    fun register(
+        context: Context,
+        mode: ScanMode = ScanMode.ENTRY_DETECTION
+    ): RegistrationResult {
         if (!hasScanPermission(context)) {
             return RegistrationResult(false, "BLE 스캔 권한이 없습니다.")
         }
@@ -30,21 +33,22 @@ object BleScanRegistrar {
             Intent(context, BleReceiver::class.java).setAction(BleReceiver.ACTION_SCAN_RESULT),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
         )
-        val filter = ScanFilter.Builder()
-            .setServiceUuid(BleConstants.targetParcelUuid)
-            .build()
+        val filters = buildFilters(context, mode)
+            ?: return RegistrationResult(false, "저장된 학번이 없어 BLE 스캔을 등록할 수 없습니다.")
         val settings = ScanSettings.Builder()
-            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
-            .setCallbackType(ScanSettings.CALLBACK_TYPE_FIRST_MATCH)
+            .setScanMode(mode.platformScanMode)
+            .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
             .setReportDelay(0L)
             .build()
         return try {
-            val errorCode = scanner.startScan(listOf(filter), settings, callbackIntent)
+            scanner.stopScan(callbackIntent)
+            val errorCode = scanner.startScan(filters, settings, callbackIntent)
             val success = errorCode == 0 ||
                 errorCode == ScanCallback.SCAN_FAILED_ALREADY_STARTED
             if (success) {
                 RelayStatusStore.setScanRegistered(context, true)
-                RegistrationResult(true, "0312 백그라운드 감지가 활성화되었습니다.")
+                RelayStatusStore.setRelayPhase(context, mode.relayPhase)
+                RegistrationResult(true, mode.successMessage)
             } else {
                 RelayStatusStore.setScanRegistered(context, false)
                 RegistrationResult(false, "BLE 스캔 등록 실패: ${scanErrorName(errorCode)}")
@@ -66,6 +70,39 @@ object BleScanRegistrar {
                 PackageManager.PERMISSION_GRANTED
         }
 
+    private fun buildFilters(context: Context, mode: ScanMode): List<ScanFilter>? = when (mode) {
+        ScanMode.ENTRY_DETECTION -> listOf(
+            ScanFilter.Builder()
+                .setServiceUuid(BleConstants.targetParcelUuid)
+                .build()
+        )
+
+        ScanMode.OPEN_CONFIRMATION -> buildRaspberrySignalFilters(
+            context,
+            BleConstants.openParcelUuid
+        )
+
+        ScanMode.PRESENCE_MONITORING -> buildRaspberrySignalFilters(
+            context,
+            BleConstants.heartbeatParcelUuid
+        )
+    }
+
+    private fun buildRaspberrySignalFilters(
+        context: Context,
+        serviceUuid: android.os.ParcelUuid
+    ): List<ScanFilter>? {
+        val studentId = RelayStatusStore.studentId(context) ?: return null
+        return listOf(
+            ScanFilter.Builder()
+                .setServiceData(
+                    serviceUuid,
+                    studentId.toByteArray(Charsets.US_ASCII)
+                )
+                .build()
+        )
+    }
+
     fun scanErrorName(errorCode: Int): String = when (errorCode) {
         0 -> "NO_ERROR"
         ScanCallback.SCAN_FAILED_ALREADY_STARTED -> "ALREADY_STARTED"
@@ -75,6 +112,28 @@ object BleScanRegistrar {
         ScanCallback.SCAN_FAILED_OUT_OF_HARDWARE_RESOURCES -> "OUT_OF_HARDWARE_RESOURCES"
         ScanCallback.SCAN_FAILED_SCANNING_TOO_FREQUENTLY -> "SCANNING_TOO_FREQUENTLY"
         else -> "UNKNOWN($errorCode)"
+    }
+
+    enum class ScanMode(
+        val platformScanMode: Int,
+        val successMessage: String,
+        val relayPhase: RelayStatusStore.RelayPhase
+    ) {
+        ENTRY_DETECTION(
+            ScanSettings.SCAN_MODE_LOW_LATENCY,
+            "0312 빠른 진입 감지가 활성화되었습니다.",
+            RelayStatusStore.RelayPhase.WATCHING_0312
+        ),
+        OPEN_CONFIRMATION(
+            ScanSettings.SCAN_MODE_LOW_LATENCY,
+            "2222 문 열림 확인 감지가 활성화되었습니다.",
+            RelayStatusStore.RelayPhase.REQUESTING_OPEN
+        ),
+        PRESENCE_MONITORING(
+            ScanSettings.SCAN_MODE_BALANCED,
+            "3333 저전력 근접 확인이 활성화되었습니다.",
+            RelayStatusStore.RelayPhase.INSIDE_ROOM
+        )
     }
 
     data class RegistrationResult(val success: Boolean, val message: String)

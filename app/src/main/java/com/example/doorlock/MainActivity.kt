@@ -91,9 +91,15 @@ class MainActivity : AppCompatActivity() {
 
         if (RelayStatusStore.studentId(this) == null) {
             showStudentIdInput()
-        } else if (hasCompanionAssociation() && hasRequiredBlePermissions()) {
+        } else if (
+            RelayStatusStore.isInitialSetupComplete(this) &&
+            hasCompanionAssociation() &&
+            hasRequiredBlePermissions()
+        ) {
             showMainPage()
-            registerBackgroundScan(showToast = false)
+            if (!BleRelayService.isSessionActive()) {
+                registerBackgroundScan(showToast = false)
+            }
         } else if (savedInstanceState == null) {
             showSetupProgress(R.string.setup_preparing)
             mainHandler.post { startInitialSetupOnce() }
@@ -199,8 +205,10 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, result.message, Toast.LENGTH_LONG).show()
         }
         if (result.success) {
+            RelayStatusStore.setInitialSetupComplete(this, true)
             showMainPage()
         } else {
+            RelayStatusStore.setInitialSetupComplete(this, false)
             showSetupError(result.message, recordEvent = false)
         }
         refreshStatus()
@@ -301,10 +309,17 @@ class MainActivity : AppCompatActivity() {
 
     private fun refreshStatus() {
         relayStatusText.setText(
-            when {
-                RelayStatusStore.isAdvertising(this) -> R.string.status_advertising
-                RelayStatusStore.isScanRegistered(this) -> R.string.status_ready
-                else -> R.string.status_not_configured
+            if (!RelayStatusStore.isScanRegistered(this)) {
+                R.string.status_not_configured
+            } else {
+                when (RelayStatusStore.relayPhase(this)) {
+                    RelayStatusStore.RelayPhase.WATCHING_0312 ->
+                        R.string.status_watching_0312
+                    RelayStatusStore.RelayPhase.REQUESTING_OPEN ->
+                        R.string.status_requesting_open
+                    RelayStatusStore.RelayPhase.INSIDE_ROOM ->
+                        R.string.status_inside_room
+                }
             }
         )
     }
