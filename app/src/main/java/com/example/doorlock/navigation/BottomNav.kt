@@ -1,0 +1,64 @@
+package com.example.doorlock.navigation
+
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
+import androidx.navigation.NavController
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.compose.currentBackStackEntryAsState
+import com.example.doorlock.R
+
+sealed class BottomNavDestination(
+    val route: String,
+    val title: String,
+    val iconRes: Int
+) {
+    object Home : BottomNavDestination("home", "Home", R.drawable.Home)
+    object EntryHistory : BottomNavDestination("history", "History", R.drawable.Schedule)
+    object Settings : BottomNavDestination("settings", "Settings", R.drawable.Settings)
+}
+
+@Composable
+fun BottomNavigationBar(
+    navController: NavController,
+    destinations: List<BottomNavDestination>
+) {
+    val currentBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = currentBackStackEntry?.destination?.route
+
+    NavigationBar {
+        destinations.forEach { destination ->
+            NavigationBarItem(
+                selected = currentRoute == destination.route,
+                onClick = {
+                    if (currentRoute != destination.route) {
+                        navController.navigate(destination.route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                },
+                icon = {
+                    Image(
+                        painter = painterResource(id = destination.iconRes),
+                        contentDescription = destination.title,
+                        modifier = Modifier.size(24.dp)
+                    )
+                },
+                label = {
+                    Text(destination.title)
+                }
+            )
+        }
+    }
+}
