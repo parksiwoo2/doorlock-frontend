@@ -20,9 +20,9 @@ sealed class BottomNavDestination(
     val title: String,
     val iconRes: Int
 ) {
-    object Home : BottomNavDestination("home", "Home", R.drawable.Home)
-    object EntryHistory : BottomNavDestination("history", "History", R.drawable.Schedule)
-    object Settings : BottomNavDestination("settings", "Settings", R.drawable.Settings)
+    object Home : BottomNavDestination("home", "홈", R.drawable.ic_home)
+    object EntryHistory : BottomNavDestination("history", "기록", R.drawable.ic_schedule)
+    object Settings : BottomNavDestination("settings", "설정", R.drawable.ic_settings)
 }
 
 @Composable

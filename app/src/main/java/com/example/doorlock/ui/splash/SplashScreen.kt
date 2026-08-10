@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -50,14 +51,16 @@ fun SplashScreen(
                     .size(120.dp)
                     .clip(MaterialTheme.shapes.medium),
                 shape = MaterialTheme.shapes.medium,
-                backgroundColor = LightBlue
+                // Material3 Card는 backgroundColor 파라미터가 없습니다.
+                // colors: CardColors 를 통해 컨테이너 색상을 지정합니다.
+                colors = CardDefaults.cardColors(containerColor = LightBlue)
             ) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
                     Image(
-                        painter = painterResource(id = R.drawable.khlug_long_logo),
+                        painter = painterResource(id = R.drawable.khlug_logo),
                         contentDescription = "동아리 로고",
                         modifier = Modifier.size(96.dp),
                         contentScale = ContentScale.Fit
@@ -75,7 +78,7 @@ fun SplashScreen(
             )
             Spacer(modifier = Modifier.height(12.dp))
             Text(
-                text = "TODO: 자동 로그인 여부 확인",
+                text = "자동 로그인 상태를 확인 중입니다.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
             )
@@ -85,7 +88,7 @@ fun SplashScreen(
             )
             Spacer(modifier = Modifier.height(24.dp))
             Button(onClick = onContinue) {
-                Text(text = "다음")
+                Text(text = "시작")
             }
         }
     }
