@@ -1,10 +1,11 @@
 package com.example.doorlock.navigation
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -35,8 +36,9 @@ fun BottomNavigationBar(
 
     NavigationBar {
         destinations.forEach { destination ->
+            val selected = currentRoute == destination.route
             NavigationBarItem(
-                selected = currentRoute == destination.route,
+                selected = selected,
                 onClick = {
                     if (currentRoute != destination.route) {
                         navController.navigate(destination.route) {
@@ -49,14 +51,15 @@ fun BottomNavigationBar(
                     }
                 },
                 icon = {
-                    Image(
+                    Icon(
                         painter = painterResource(id = destination.iconRes),
                         contentDescription = destination.title,
+                        tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                         modifier = Modifier.size(24.dp)
                     )
                 },
                 label = {
-                    Text(destination.title)
+                    Text(destination.title, color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f))
                 }
             )
         }

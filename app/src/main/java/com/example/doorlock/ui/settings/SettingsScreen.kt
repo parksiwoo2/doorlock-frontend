@@ -27,13 +27,15 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.doorlock.R
+import com.example.doorlock.data.UserSession
 
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel = viewModel(),
-    onLogout: () -> Unit = {}
+    onUnregistered: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val currentUser by UserSession.user.collectAsState()
 
     Surface(
         modifier = Modifier
@@ -59,13 +61,19 @@ fun SettingsScreen(
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
                     Text(
-                        text = "계정",
+                        text = "등록 정보",
                         style = MaterialTheme.typography.titleMedium
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "학번 및 비밀번호는 로그인 화면에서 변경할 수 있습니다.",
+                        text = "등록된 학번: ${currentUser?.studentId ?: "-"}",
                         style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.87f)
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = "다른 학번으로 사용하려면 등록을 해제한 뒤 다시 등록해 주세요.",
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
                     )
                     Spacer(modifier = Modifier.height(20.dp))
@@ -81,12 +89,14 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(20.dp))
                     Button(
                         onClick = {
-                            viewModel.onLogoutClicked()
-                            onLogout()
+                            viewModel.unregister { success ->
+                                if (success) onUnregistered()
+                            }
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(52.dp)
+                            .height(52.dp),
+                        enabled = !uiState.isLoading
                     ) {
                         Image(
                             painter = painterResource(id = R.drawable.ic_logout),
@@ -94,7 +104,7 @@ fun SettingsScreen(
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = "로그아웃")
+                        Text(text = if (uiState.isLoading) "처리 중..." else "등록 해제")
                     }
                     if (uiState.message.isNotBlank()) {
                         Spacer(modifier = Modifier.height(16.dp))

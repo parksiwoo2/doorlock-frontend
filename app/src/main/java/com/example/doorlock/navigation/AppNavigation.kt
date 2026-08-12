@@ -16,17 +16,15 @@ import com.example.doorlock.ui.history.EntryHistoryScreen
 import com.example.doorlock.ui.login.LoginScreen
 import com.example.doorlock.ui.splash.SplashScreen
 import com.example.doorlock.ui.settings.SettingsScreen
-import com.example.doorlock.ui.settings.SettingsViewModel
-import com.example.doorlock.ui.splash.SplashViewModel
-import com.example.doorlock.ui.login.LoginViewModel
-import com.example.doorlock.ui.home.HomeViewModel
-import com.example.doorlock.ui.history.HistoryViewModel
 import com.example.doorlock.navigation.BottomNavDestination
 import com.example.doorlock.navigation.BottomNavigationBar
 
 sealed class AppRoute(val route: String) {
     object Splash : AppRoute("splash")
-    object Login : AppRoute("login")
+
+    // 기존 "로그인" 개념에서 "학번 등록" 개념으로 바뀌었으므로 라우트 이름도 함께 변경.
+    // (화면 파일/함수명(LoginScreen)은 변경 범위를 최소화하기 위해 그대로 유지했습니다.)
+    object Register : AppRoute("register")
     object HomeRoot : AppRoute("home_root")
 }
 
@@ -39,18 +37,27 @@ fun AppNavigation() {
         startDestination = AppRoute.Splash.route
     ) {
         composable(AppRoute.Splash.route) {
-            SplashScreen(onContinue = {
-                navController.navigate(AppRoute.Login.route) {
-                    popUpTo(AppRoute.Splash.route) {
-                        inclusive = true
+            SplashScreen(
+                onNavigateToRegister = {
+                    navController.navigate(AppRoute.Register.route) {
+                        popUpTo(AppRoute.Splash.route) {
+                            inclusive = true
+                        }
+                    }
+                },
+                onNavigateToHome = {
+                    navController.navigate(AppRoute.HomeRoot.route) {
+                        popUpTo(AppRoute.Splash.route) {
+                            inclusive = true
+                        }
                     }
                 }
-            })
+            )
         }
-        composable(AppRoute.Login.route) {
-            LoginScreen(onLoginSuccess = {
+        composable(AppRoute.Register.route) {
+            LoginScreen(onRegisterSuccess = {
                 navController.navigate(AppRoute.HomeRoot.route) {
-                    popUpTo(AppRoute.Login.route) {
+                    popUpTo(AppRoute.Register.route) {
                         inclusive = true
                     }
                 }
@@ -94,8 +101,8 @@ private fun HomeRootScreen(rootNavController: NavHostController) {
                 EntryHistoryScreen()
             }
             composable(BottomNavDestination.Settings.route) {
-                SettingsScreen(onLogout = {
-                    rootNavController.navigate(AppRoute.Login.route) {
+                SettingsScreen(onUnregistered = {
+                    rootNavController.navigate(AppRoute.Register.route) {
                         popUpTo(AppRoute.HomeRoot.route) {
                             inclusive = true
                         }

@@ -1,52 +1,50 @@
 package com.example.doorlock.ui.login
 
-import androidx.compose.material3.CardDefaults
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.doorlock.R
 
+/**
+ * 학번 등록 화면.
+ *
+ * 기존 "학번 + 비밀번호 로그인" 화면에서, 비밀번호 입력/표시 토글을 완전히 제거하고
+ * 학번만 입력받아 기기에 등록하는 화면으로 변경되었습니다.
+ * 레이아웃 구조(로고 카드 + 입력 카드)는 기존과 최대한 동일하게 유지했습니다.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(
     viewModel: LoginViewModel = viewModel(),
-    onLoginSuccess: () -> Unit = {}
+    onRegisterSuccess: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    var passwordVisible by rememberSaveable { mutableStateOf(false) }
 
     Surface(
         modifier = Modifier
@@ -101,58 +99,41 @@ fun LoginScreen(
             ) {
                 Column(modifier = Modifier.padding(22.dp)) {
                     Text(
-                        text = "로그인",
+                        text = "학번 등록",
                         style = MaterialTheme.typography.titleMedium
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "BLE 자동 출입에 사용할 학번을 이 기기에 등록합니다.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
                     )
                     Spacer(modifier = Modifier.height(20.dp))
                     OutlinedTextField(
                         value = uiState.studentId,
                         onValueChange = viewModel::onStudentIdChange,
                         label = { Text(text = "학번") },
-                        placeholder = { Text(text = "예: 2026123456") },
+                        placeholder = { Text(text = "예: 2026xxxxxx") },
                         singleLine = true,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(56.dp),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                     )
-                    Spacer(modifier = Modifier.height(14.dp))
-                    OutlinedTextField(
-                        value = uiState.password,
-                        onValueChange = viewModel::onPasswordChange,
-                        label = { Text(text = "비밀번호") },
-                        placeholder = { Text(text = "비밀번호를 입력해 주세요") },
-                        singleLine = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp),
-                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        trailingIcon = {
-                            TextButton(onClick = { passwordVisible = !passwordVisible }) {
-                                Text(
-                                    text = if (passwordVisible) "숨기기" else "표시",
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
-                        }
-                    )
                     Spacer(modifier = Modifier.height(20.dp))
                     Button(
-                        onClick = onLoginSuccess,
+                        onClick = {
+                            viewModel.clearError()
+                            viewModel.register { success ->
+                                if (success) onRegisterSuccess()
+                            }
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(52.dp)
+                            .height(52.dp),
+                        enabled = !uiState.isLoading
                     ) {
-                        Text(text = "로그인")
-                    }
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        TextButton(onClick = viewModel::onChangeStudentIdClick) {
-                            Text(text = "학번 변경")
-                        }
+                        Text(text = if (uiState.isLoading) "등록 중..." else "등록")
                     }
                     if (uiState.errorMessage.isNotBlank()) {
                         Spacer(modifier = Modifier.height(10.dp))

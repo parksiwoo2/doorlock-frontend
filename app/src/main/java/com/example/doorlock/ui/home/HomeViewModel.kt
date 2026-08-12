@@ -11,8 +11,6 @@ class HomeViewModel : ViewModel() {
 }
 
 data class HomeUiState(
-    val userName: String = "사용자 이름",
-    val studentId: String = "2026123456",
     val bleStatus: String = "대기 중",
     val connectionStatus: String = "BLE 감지 중",
     val recentRecords: List<EntryRecord> = listOf(
