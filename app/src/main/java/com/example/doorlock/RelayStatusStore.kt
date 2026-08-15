@@ -12,6 +12,8 @@ object RelayStatusStore {
     private const val studentIdKey = "student_id"
     private const val initialSetupCompleteKey = "initial_setup_complete"
     private const val relayPhaseKey = "relay_phase"
+    private const val presenceVisibleKey = "presence_visible"
+    private const val sessionTokenKey = "session_token"
     private const val maxEvents = 60
 
     @Synchronized
@@ -92,6 +94,35 @@ object RelayStatusStore {
         return RelayPhase.entries.firstOrNull { it.name == savedPhase }
             ?: RelayPhase.WATCHING_0312
     }
+
+    fun setPresenceVisible(context: Context, visible: Boolean) {
+        context.getSharedPreferences(preferencesName, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(presenceVisibleKey, visible)
+            .apply()
+    }
+
+    fun isPresenceVisible(context: Context): Boolean =
+        context.getSharedPreferences(preferencesName, Context.MODE_PRIVATE)
+            .getBoolean(presenceVisibleKey, true)
+
+    fun setSessionToken(context: Context, sessionToken: Int?) {
+        require(sessionToken == null || sessionToken in 0..255) {
+            "Session token must fit in one byte."
+        }
+        val editor = context.getSharedPreferences(preferencesName, Context.MODE_PRIVATE).edit()
+        if (sessionToken == null) {
+            editor.remove(sessionTokenKey)
+        } else {
+            editor.putInt(sessionTokenKey, sessionToken)
+        }
+        editor.apply()
+    }
+
+    fun sessionToken(context: Context): Int? =
+        context.getSharedPreferences(preferencesName, Context.MODE_PRIVATE)
+            .getInt(sessionTokenKey, -1)
+            .takeIf { it in 0..255 }
 
     enum class RelayPhase {
         WATCHING_0312,

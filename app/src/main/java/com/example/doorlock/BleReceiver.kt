@@ -1,12 +1,10 @@
 package com.example.doorlock
 
 import android.bluetooth.le.BluetoothLeScanner
-import android.bluetooth.le.ScanRecord
 import android.bluetooth.le.ScanResult
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.os.ParcelUuid
 import android.os.SystemClock
 import android.util.Log
 import androidx.core.content.ContextCompat
@@ -33,70 +31,81 @@ class BleReceiver : BroadcastReceiver() {
         }
 
         val studentId = RelayStatusStore.studentId(context)
-        val expectedStudentIdData = studentId?.toByteArray(Charsets.US_ASCII)
+        val sessionToken = RelayStatusStore.sessionToken(context)
         val relayPhase = RelayStatusStore.relayPhase(context)
         results
             .mapNotNull { result ->
-                classifySignal(result, expectedStudentIdData, relayPhase)
+                classifySignal(result, studentId, sessionToken, relayPhase)
                     ?.let { signal -> signal to result.rssi }
             }
-            .distinctBy { it.first }
-            .forEach { (signal, rssi) ->
-                forwardSignal(context, signal, studentId, rssi)
+            .distinctBy { it.first.type }
+            .forEach { (detectedSignal, rssi) ->
+                forwardSignal(context, detectedSignal, studentId, rssi)
             }
     }
 
     private fun classifySignal(
         result: ScanResult,
-        expectedStudentIdData: ByteArray?,
+        studentId: String?,
+        sessionToken: Int?,
         relayPhase: RelayStatusStore.RelayPhase
-    ): SignalType? {
+    ): DetectedSignal? {
         val scanRecord = result.scanRecord ?: return null
         val serviceData = scanRecord.serviceData
         val hasEntrySignal =
             scanRecord.serviceUuids?.contains(BleConstants.targetParcelUuid) == true ||
             serviceData.containsKey(BleConstants.targetParcelUuid)
-        val hasOpenSignal = matchesRaspberrySignal(
-            scanRecord,
-            BleConstants.openParcelUuid,
-            expectedStudentIdData
-        )
-        val hasHeartbeatSignal = matchesRaspberrySignal(
-            scanRecord,
-            BleConstants.heartbeatParcelUuid,
-            expectedStudentIdData
-        )
-        return selectSignalForPhase(
+        val openSessionToken = studentId?.let {
+            BlePayloadCodec.openSessionToken(serviceData[BleConstants.openParcelUuid], it)
+        }
+        val hasHeartbeatSignal = sessionToken != null &&
+            BlePayloadCodec.matchesHeartbeat(
+                serviceData[BleConstants.heartbeatParcelUuid],
+                sessionToken
+            )
+        val signalType = selectSignalForPhase(
             relayPhase,
             hasEntrySignal,
-            hasOpenSignal,
+            openSessionToken != null,
             hasHeartbeatSignal
-        )
-    }
-
-    private fun matchesRaspberrySignal(
-        scanRecord: ScanRecord,
-        serviceUuid: ParcelUuid,
-        expectedStudentIdData: ByteArray?
-    ): Boolean {
-        val serviceData = scanRecord.serviceData
-        return expectedStudentIdData != null &&
-            serviceData[serviceUuid]?.contentEquals(expectedStudentIdData) == true
+        ) ?: return null
+        val detectedSessionToken = when (signalType) {
+            SignalType.ENTRY -> null
+            SignalType.OPEN_CONFIRMED -> openSessionToken
+            SignalType.HEARTBEAT -> sessionToken
+        }
+        return DetectedSignal(signalType, detectedSessionToken)
     }
 
     private fun forwardSignal(
         context: Context,
-        signal: SignalType,
+        detectedSignal: DetectedSignal,
         studentId: String?,
         rssi: Int
     ) {
+        val signal = detectedSignal.type
         val now = SystemClock.elapsedRealtime()
         if (!signal.shouldForward(now)) return
 
         val serviceIntent = Intent(context, BleRelayService::class.java)
             .setAction(signal.serviceAction)
-        if (signal != SignalType.ENTRY && studentId != null) {
-            serviceIntent.putExtra(BleRelayService.EXTRA_STUDENT_ID, studentId)
+        when (signal) {
+            SignalType.ENTRY -> Unit
+            SignalType.OPEN_CONFIRMED -> {
+                if (studentId == null || detectedSignal.sessionToken == null) return
+                serviceIntent.putExtra(BleRelayService.EXTRA_STUDENT_ID, studentId)
+                serviceIntent.putExtra(
+                    BleRelayService.EXTRA_SESSION_TOKEN,
+                    detectedSignal.sessionToken
+                )
+            }
+            SignalType.HEARTBEAT -> {
+                if (detectedSignal.sessionToken == null) return
+                serviceIntent.putExtra(
+                    BleRelayService.EXTRA_SESSION_TOKEN,
+                    detectedSignal.sessionToken
+                )
+            }
         }
 
         try {
@@ -108,6 +117,11 @@ class BleReceiver : BroadcastReceiver() {
             Log.e(tag, failure, exception)
         }
     }
+
+    private data class DetectedSignal(
+        val type: SignalType,
+        val sessionToken: Int?
+    )
 
     internal enum class SignalType(
         val serviceAction: String,

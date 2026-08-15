@@ -34,7 +34,7 @@ object BleScanRegistrar {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
         )
         val filters = buildFilters(context, mode)
-            ?: return RegistrationResult(false, "저장된 학번이 없어 BLE 스캔을 등록할 수 없습니다.")
+            ?: return RegistrationResult(false, mode.missingDataMessage)
         val settings = ScanSettings.Builder()
             .setScanMode(mode.platformScanMode)
             .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
@@ -77,27 +77,31 @@ object BleScanRegistrar {
                 .build()
         )
 
-        ScanMode.OPEN_CONFIRMATION -> buildRaspberrySignalFilters(
-            context,
-            BleConstants.openParcelUuid
-        )
+        ScanMode.OPEN_CONFIRMATION -> buildOpenConfirmationFilters(context)
 
-        ScanMode.PRESENCE_MONITORING -> buildRaspberrySignalFilters(
-            context,
-            BleConstants.heartbeatParcelUuid
-        )
+        ScanMode.PRESENCE_MONITORING -> buildHeartbeatFilters(context)
     }
 
-    private fun buildRaspberrySignalFilters(
-        context: Context,
-        serviceUuid: android.os.ParcelUuid
-    ): List<ScanFilter>? {
+    private fun buildOpenConfirmationFilters(context: Context): List<ScanFilter>? {
         val studentId = RelayStatusStore.studentId(context) ?: return null
         return listOf(
             ScanFilter.Builder()
                 .setServiceData(
-                    serviceUuid,
-                    studentId.toByteArray(Charsets.US_ASCII)
+                    BleConstants.openParcelUuid,
+                    BlePayloadCodec.openConfirmationFilterData(studentId),
+                    BlePayloadCodec.openConfirmationFilterMask()
+                )
+                .build()
+        )
+    }
+
+    private fun buildHeartbeatFilters(context: Context): List<ScanFilter>? {
+        val sessionToken = RelayStatusStore.sessionToken(context) ?: return null
+        return listOf(
+            ScanFilter.Builder()
+                .setServiceData(
+                    BleConstants.heartbeatParcelUuid,
+                    BlePayloadCodec.heartbeat(sessionToken)
                 )
                 .build()
         )
@@ -117,22 +121,26 @@ object BleScanRegistrar {
     enum class ScanMode(
         val platformScanMode: Int,
         val successMessage: String,
-        val relayPhase: RelayStatusStore.RelayPhase
+        val relayPhase: RelayStatusStore.RelayPhase,
+        val missingDataMessage: String
     ) {
         ENTRY_DETECTION(
             ScanSettings.SCAN_MODE_LOW_LATENCY,
             "0312 빠른 진입 감지가 활성화되었습니다.",
-            RelayStatusStore.RelayPhase.WATCHING_0312
+            RelayStatusStore.RelayPhase.WATCHING_0312,
+            "0312 스캔 필터를 만들 수 없습니다."
         ),
         OPEN_CONFIRMATION(
             ScanSettings.SCAN_MODE_LOW_LATENCY,
             "2222 문 열림 확인 감지가 활성화되었습니다.",
-            RelayStatusStore.RelayPhase.REQUESTING_OPEN
+            RelayStatusStore.RelayPhase.REQUESTING_OPEN,
+            "저장된 학번이 없어 2222 스캔을 등록할 수 없습니다."
         ),
         PRESENCE_MONITORING(
             ScanSettings.SCAN_MODE_BALANCED,
             "3333 저전력 근접 확인이 활성화되었습니다.",
-            RelayStatusStore.RelayPhase.INSIDE_ROOM
+            RelayStatusStore.RelayPhase.INSIDE_ROOM,
+            "세션 번호가 없어 3333 스캔을 등록할 수 없습니다."
         )
     }
 

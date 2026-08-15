@@ -98,11 +98,27 @@
             android:text="@string/main_placeholder"
             android:textAppearance="?attr/textAppearanceBodyLarge" />
 
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/presence_visibility_switch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:checked="true"
+            android:text="@string/presence_visibility_title"
+            android:textAppearance="?attr/textAppearanceTitleMedium" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/presence_visibility_description"
+            android:textAppearance="?attr/textAppearanceBodyMedium" />
+
         <TextView
             android:id="@+id/relay_status_text"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="32dp"
+            android:layout_marginTop="24dp"
             android:background="#12000000"
             android:padding="16dp"
             android:text="@string/status_watching_0312"

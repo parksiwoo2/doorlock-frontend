@@ -7,6 +7,7 @@ import android.companion.AssociationRequest
 import android.companion.BluetoothLeDeviceFilter
 import android.companion.CompanionDeviceManager
 import android.content.Context
+import android.content.Intent
 import android.content.IntentSender
 import android.content.pm.PackageManager
 import android.os.Build
@@ -22,6 +23,7 @@ import android.widget.Toast
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SwitchCompat
 import androidx.core.app.ActivityCompat
 
 class MainActivity : AppCompatActivity() {
@@ -31,6 +33,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var setupProgress: View
     private lateinit var statusText: TextView
     private lateinit var relayStatusText: TextView
+    private lateinit var presenceVisibilitySwitch: SwitchCompat
     private lateinit var retryButton: Button
     private lateinit var studentIdContainer: View
     private lateinit var studentIdInput: EditText
@@ -79,6 +82,7 @@ class MainActivity : AppCompatActivity() {
         setupProgress = findViewById(R.id.setup_progress)
         statusText = findViewById(R.id.status_text)
         relayStatusText = findViewById(R.id.relay_status_text)
+        presenceVisibilitySwitch = findViewById(R.id.presence_visibility_switch)
         retryButton = findViewById(R.id.retry_button)
         studentIdContainer = findViewById(R.id.student_id_container)
         studentIdInput = findViewById(R.id.student_id_input)
@@ -88,6 +92,27 @@ class MainActivity : AppCompatActivity() {
             beginConfiguration()
         }
         saveStudentIdButton.setOnClickListener { saveStudentIdAndContinue() }
+        presenceVisibilitySwitch.isChecked = RelayStatusStore.isPresenceVisible(this)
+        presenceVisibilitySwitch.setOnCheckedChangeListener { _, isChecked ->
+            RelayStatusStore.setPresenceVisible(this, isChecked)
+            RelayStatusStore.addEvent(
+                this,
+                if (isChecked) "재실 상태 공개 켜짐" else "재실 상태 공개 꺼짐"
+            )
+            if (BleRelayService.isSessionActive()) {
+                try {
+                    startService(
+                        Intent(this, BleRelayService::class.java)
+                            .setAction(BleRelayService.ACTION_VISIBILITY_CHANGED)
+                    )
+                } catch (exception: RuntimeException) {
+                    RelayStatusStore.addEvent(
+                        this,
+                        "재실 공개 설정 BLE 반영 실패: ${exception.message}"
+                    )
+                }
+            }
+        }
 
         if (RelayStatusStore.studentId(this) == null) {
             showStudentIdInput()
