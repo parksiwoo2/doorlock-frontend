@@ -10,6 +10,8 @@ object RelayStatusStore {
     private const val scanRegisteredKey = "scan_registered"
     private const val advertisingKey = "advertising"
     private const val studentIdKey = "student_id"
+    private const val initialSetupCompleteKey = "initial_setup_complete"
+    private const val relayPhaseKey = "relay_phase"
     private const val maxEvents = 60
 
     @Synchronized
@@ -65,4 +67,35 @@ object RelayStatusStore {
         context.getSharedPreferences(preferencesName, Context.MODE_PRIVATE)
             .getString(studentIdKey, null)
             ?.takeIf { it.length == 10 && it.all(Char::isDigit) }
+
+    fun setInitialSetupComplete(context: Context, complete: Boolean) {
+        context.getSharedPreferences(preferencesName, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(initialSetupCompleteKey, complete)
+            .apply()
+    }
+
+    fun isInitialSetupComplete(context: Context): Boolean =
+        context.getSharedPreferences(preferencesName, Context.MODE_PRIVATE)
+            .getBoolean(initialSetupCompleteKey, false)
+
+    fun setRelayPhase(context: Context, phase: RelayPhase) {
+        context.getSharedPreferences(preferencesName, Context.MODE_PRIVATE)
+            .edit()
+            .putString(relayPhaseKey, phase.name)
+            .apply()
+    }
+
+    fun relayPhase(context: Context): RelayPhase {
+        val savedPhase = context.getSharedPreferences(preferencesName, Context.MODE_PRIVATE)
+            .getString(relayPhaseKey, null)
+        return RelayPhase.entries.firstOrNull { it.name == savedPhase }
+            ?: RelayPhase.WATCHING_0312
+    }
+
+    enum class RelayPhase {
+        WATCHING_0312,
+        REQUESTING_OPEN,
+        INSIDE_ROOM
+    }
 }

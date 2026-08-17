@@ -14,23 +14,275 @@ import android.bluetooth.le.BluetoothLeAdvertiser
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 
 class BleRelayService : Service() {
+    private val handler = Handler(Looper.getMainLooper())
     private var advertiser: BluetoothLeAdvertiser? = null
     private var advertiseCallback: AdvertiseCallback? = null
+    private var state = SessionState.IDLE
+    private var foregroundStarted = false
+    private var initialAdvertisingFinished = false
+    private var openConfirmed = false
+    private var lastHeartbeatAt = 0L
+
+    private val finishInitialAdvertisingTask: Runnable = Runnable {
+        if (state != SessionState.WAITING_FOR_OPEN) return@Runnable
+        stopAdvertising()
+        initialAdvertisingFinished = true
+        RelayStatusStore.addEvent(this, "최초 1111 학번 광고 5초 송출 완료")
+        if (openConfirmed) beginPresenceMonitoring()
+    }
+
+    private val openConfirmationTimeoutTask: Runnable = Runnable {
+        if (state == SessionState.WAITING_FOR_OPEN) {
+            stopSession("10초 안에 내 학번이 담긴 2222 문 열림 신호를 받지 못했습니다.")
+        }
+    }
+
+    private val heartbeatTimeoutCheckTask: Runnable = object : Runnable {
+        override fun run() {
+            if (state != SessionState.MONITORING_PRESENCE) return
+            if (hasHeartbeatTimedOut()) {
+                stopSession("내 학번이 담긴 3333 신호를 30초 동안 받지 못해 BLE 세션을 종료합니다.")
+            } else {
+                handler.postDelayed(this, heartbeatCheckIntervalMillis)
+            }
+        }
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_STOP_ADVERTISING) {
-            RelayStatusStore.addEvent(this, "사용자가 1111 송출을 중지했습니다.")
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
-            return START_NOT_STICKY
+        when (intent?.action) {
+            ACTION_STOP_ADVERTISING -> {
+                stopSession("사용자가 BLE 세션을 중지했습니다.")
+            }
+
+            ACTION_ENTRY_SIGNAL -> {
+                ensureForegroundStarted()
+                if (state == SessionState.IDLE) startEntrySession()
+            }
+
+            ACTION_OPEN_CONFIRMED -> {
+                ensureForegroundStarted()
+                if (!hasMatchingStudentId(intent)) {
+                    if (state == SessionState.IDLE) stopSession("학번이 일치하지 않는 2222 신호를 무시했습니다.")
+                } else if (state == SessionState.WAITING_FOR_OPEN) {
+                    handleOpenConfirmed()
+                } else if (state == SessionState.IDLE) {
+                    stopSession("활성 세션이 없어 2222 신호를 무시했습니다.")
+                }
+            }
+
+            ACTION_HEARTBEAT -> {
+                ensureForegroundStarted()
+                if (!hasMatchingStudentId(intent)) {
+                    if (state == SessionState.IDLE) stopSession("학번이 일치하지 않는 3333 신호를 무시했습니다.")
+                } else if (state == SessionState.MONITORING_PRESENCE) {
+                    lastHeartbeatAt = SystemClock.elapsedRealtime()
+                    Log.d(tag, "3333 heartbeat received")
+                } else if (state == SessionState.IDLE) {
+                    stopSession("활성 세션이 없어 3333 신호를 무시했습니다.")
+                }
+            }
+
+            else -> stopSelf(startId)
+        }
+        return START_NOT_STICKY
+    }
+
+    private fun startEntrySession() {
+        activeSession = true
+        state = SessionState.WAITING_FOR_OPEN
+        initialAdvertisingFinished = false
+        openConfirmed = false
+        RelayStatusStore.addEvent(this, "0312 감지: 2222 문 열림 확인 대기 시작")
+        updateNotification(
+            getString(R.string.notification_detected_title),
+            getString(R.string.notification_detected_text)
+        )
+
+        val scanResult = BleScanRegistrar.register(
+            this,
+            BleScanRegistrar.ScanMode.OPEN_CONFIRMATION
+        )
+        RelayStatusStore.addEvent(this, scanResult.message)
+        if (!scanResult.success) {
+            stopSession("2222 문 열림 확인 스캔 전환 실패: ${scanResult.message}")
+            return
+        }
+        if (!startAdvertising(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY, "최초 1111 광고")) {
+            return
+        }
+        handler.postDelayed(finishInitialAdvertisingTask, initialAdvertiseDurationMillis)
+        handler.postDelayed(openConfirmationTimeoutTask, openConfirmationTimeoutMillis)
+    }
+
+    private fun handleOpenConfirmed() {
+        if (!openConfirmed) {
+            openConfirmed = true
+            RelayStatusStore.addEvent(this, "내 학번이 담긴 2222 문 열림 신호 확인")
+        }
+        if (initialAdvertisingFinished) beginPresenceMonitoring()
+    }
+
+    private fun beginPresenceMonitoring() {
+        if (
+            state != SessionState.WAITING_FOR_OPEN ||
+            !openConfirmed ||
+            !initialAdvertisingFinished
+        ) {
+            return
         }
 
+        handler.removeCallbacks(openConfirmationTimeoutTask)
+        state = SessionState.MONITORING_PRESENCE
+        val scanResult = BleScanRegistrar.register(
+            this,
+            BleScanRegistrar.ScanMode.PRESENCE_MONITORING
+        )
+        RelayStatusStore.addEvent(this, scanResult.message)
+        if (!scanResult.success) {
+            stopSession("3333 근접 확인 스캔 전환 실패: ${scanResult.message}")
+            return
+        }
+
+        lastHeartbeatAt = SystemClock.elapsedRealtime()
+        if (!startAdvertising(AdvertiseSettings.ADVERTISE_MODE_LOW_POWER, "저전력 1111 광고")) {
+            return
+        }
+        updateNotification(
+            getString(R.string.notification_session_title),
+            getString(R.string.notification_session_text)
+        )
+        handler.postDelayed(heartbeatTimeoutCheckTask, heartbeatCheckIntervalMillis)
+    }
+
+    private fun startAdvertising(advertiseMode: Int, phase: String): Boolean {
+        if (!hasAdvertisePermission()) {
+            failAndStop("BLE 광고 권한이 없습니다.")
+            return false
+        }
+        val studentId = RelayStatusStore.studentId(this)
+        if (studentId == null) {
+            failAndStop("저장된 학번이 없어 BLE 광고를 시작할 수 없습니다.")
+            return false
+        }
+        val activeAdvertiser = advertiser
+            ?: getSystemService(BluetoothManager::class.java)?.adapter?.bluetoothLeAdvertiser
+            ?: run {
+                failAndStop("BLE 광고 미지원 또는 Bluetooth 꺼짐")
+                return false
+            }
+        advertiser = activeAdvertiser
+
+        if (advertiseCallback != null) stopAdvertising()
+
+        val settings = AdvertiseSettings.Builder()
+            .setAdvertiseMode(advertiseMode)
+            .setTxPowerLevel(
+                if (advertiseMode == AdvertiseSettings.ADVERTISE_MODE_LOW_POWER) {
+                    AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM
+                } else {
+                    AdvertiseSettings.ADVERTISE_TX_POWER_HIGH
+                }
+            )
+            .setConnectable(false)
+            .setTimeout(0)
+            .build()
+        val data = AdvertiseData.Builder()
+            .addServiceData(
+                BleConstants.responseParcelUuid,
+                studentId.toByteArray(Charsets.US_ASCII)
+            )
+            .setIncludeDeviceName(false)
+            .setIncludeTxPowerLevel(false)
+            .build()
+        val callback = object : AdvertiseCallback() {
+            override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
+                if (advertiseCallback !== this) return
+                RelayStatusStore.setAdvertising(this@BleRelayService, true)
+                Log.i(tag, "$phase started")
+            }
+
+            override fun onStartFailure(errorCode: Int) {
+                if (advertiseCallback !== this) return
+                val message = "$phase 시작 실패: ${advertiseErrorName(errorCode)}"
+                Log.e(tag, message)
+                stopSession(message)
+            }
+        }
+        advertiseCallback = callback
+        return try {
+            activeAdvertiser.startAdvertising(settings, data, callback)
+            true
+        } catch (exception: SecurityException) {
+            failAndStop("BLE 광고 권한 오류: ${exception.message}")
+            false
+        } catch (exception: IllegalArgumentException) {
+            failAndStop("BLE 광고 데이터 오류: ${exception.message}")
+            false
+        }
+    }
+
+    private fun stopAdvertising() {
+        val callback = advertiseCallback
+        advertiseCallback = null
+        if (callback != null && hasAdvertisePermission()) {
+            try {
+                advertiser?.stopAdvertising(callback)
+            } catch (exception: SecurityException) {
+                Log.e(tag, "BLE 광고 중지 실패", exception)
+            }
+        }
+        RelayStatusStore.setAdvertising(this, false)
+    }
+
+    private fun hasMatchingStudentId(intent: Intent): Boolean {
+        val receivedStudentId = intent.getStringExtra(EXTRA_STUDENT_ID)
+        return receivedStudentId != null &&
+            receivedStudentId == RelayStatusStore.studentId(this)
+    }
+
+    private fun hasHeartbeatTimedOut(): Boolean =
+        SystemClock.elapsedRealtime() - lastHeartbeatAt >= heartbeatTimeoutMillis
+
+    private fun stopSession(message: String) {
+        if (state != SessionState.IDLE) RelayStatusStore.addEvent(this, message)
+        Log.i(tag, message)
+        activeSession = false
+        state = SessionState.IDLE
+        handler.removeCallbacksAndMessages(null)
+        stopAdvertising()
+        restoreEntryDetectionScan()
+        if (foregroundStarted) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            foregroundStarted = false
+        }
+        stopSelf()
+    }
+
+    private fun failAndStop(message: String) {
+        Log.e(tag, message)
+        stopSession(message)
+    }
+
+    private fun restoreEntryDetectionScan() {
+        val result = BleScanRegistrar.register(
+            this,
+            BleScanRegistrar.ScanMode.ENTRY_DETECTION
+        )
+        RelayStatusStore.addEvent(this, result.message)
+        if (!result.success) Log.e(tag, "0312 진입 감지 복구 실패: ${result.message}")
+    }
+
+    private fun ensureForegroundStarted() {
+        if (foregroundStarted) return
         startForeground(
             notificationId,
             buildNotification(
@@ -38,77 +290,15 @@ class BleRelayService : Service() {
                 getString(R.string.notification_detected_text)
             )
         )
-        if (advertiseCallback == null) {
-            startAdvertising()
-        } else {
-            RelayStatusStore.addEvent(this, "추가 0312 신호 감지: 1111 광고는 이미 송출 중입니다.")
-        }
-        return START_STICKY
+        foregroundStarted = true
     }
 
-    private fun startAdvertising() {
-        if (!hasAdvertisePermission()) {
-            failAndStop("BLE 광고 권한이 없습니다.")
-            return
-        }
-        val studentId = RelayStatusStore.studentId(this)
-        if (studentId == null) {
-            failAndStop("저장된 학번이 없어 BLE 광고를 시작할 수 없습니다.")
-            return
-        }
-        val adapter = getSystemService(BluetoothManager::class.java)?.adapter
-        val activeAdvertiser = adapter?.bluetoothLeAdvertiser
-        if (activeAdvertiser == null) {
-            failAndStop("BLE 광고 미지원 또는 Bluetooth 꺼짐")
-            return
-        }
-        advertiser = activeAdvertiser
-
-        val settings = AdvertiseSettings.Builder()
-            .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
-            .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
-            .setConnectable(false)
-            .setTimeout(0)
-            .build()
-        val data = AdvertiseData.Builder()
-            .addServiceUuid(BleConstants.responseParcelUuid)
-            .addServiceData(BleConstants.responseParcelUuid, studentId.toByteArray(Charsets.US_ASCII))
-            .setIncludeDeviceName(false)
-            .setIncludeTxPowerLevel(false)
-            .build()
-        val callback = object : AdvertiseCallback() {
-            override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
-                RelayStatusStore.setAdvertising(this@BleRelayService, true)
-                RelayStatusStore.addEvent(
-                    this@BleRelayService,
-                    "학번이 포함된 1111 응답 광고 시작 성공 - 중지할 때까지 지속 송출"
-                )
-                Log.i(tag, "1111 BLE advertising started")
-                getSystemService(NotificationManager::class.java)?.notify(
-                    notificationId,
-                    buildNotification(
-                        getString(R.string.notification_advertising_title),
-                        getString(R.string.notification_advertising_text)
-                    )
-                )
-            }
-
-            override fun onStartFailure(errorCode: Int) {
-                val message = "1111 광고 시작 실패: ${advertiseErrorName(errorCode)}"
-                RelayStatusStore.addEvent(this@BleRelayService, message)
-                Log.e(tag, message)
-                RelayStatusStore.setAdvertising(this@BleRelayService, false)
-                stopSelf()
-            }
-        }
-        advertiseCallback = callback
-        try {
-            activeAdvertiser.startAdvertising(settings, data, callback)
-        } catch (exception: SecurityException) {
-            failAndStop("BLE 광고 권한 오류: ${exception.message}")
-        } catch (exception: IllegalArgumentException) {
-            failAndStop("BLE 광고 데이터 오류: ${exception.message}")
-        }
+    private fun updateNotification(title: String, text: String) {
+        if (!foregroundStarted) return
+        getSystemService(NotificationManager::class.java)?.notify(
+            notificationId,
+            buildNotification(title, text)
+        )
     }
 
     private fun buildNotification(title: String, text: String): Notification {
@@ -146,26 +336,15 @@ class BleRelayService : Service() {
         )
     }
 
-    private fun failAndStop(message: String) {
-        RelayStatusStore.addEvent(this, message)
-        RelayStatusStore.setAdvertising(this, false)
-        Log.e(tag, message)
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        stopSelf()
-    }
-
     override fun onDestroy() {
-        val callback = advertiseCallback
-        if (callback != null && hasAdvertisePermission()) {
-            try {
-                advertiser?.stopAdvertising(callback)
-            } catch (exception: SecurityException) {
-                Log.e(tag, "Failed to stop BLE advertising", exception)
-            }
-        }
-        advertiseCallback = null
+        val shouldRestoreEntryScan = state != SessionState.IDLE
+        activeSession = false
+        state = SessionState.IDLE
+        handler.removeCallbacksAndMessages(null)
+        stopAdvertising()
+        if (shouldRestoreEntryScan) restoreEntryDetectionScan()
         advertiser = null
-        RelayStatusStore.setAdvertising(this, false)
+        foregroundStarted = false
         super.onDestroy()
     }
 
@@ -185,9 +364,28 @@ class BleRelayService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    private enum class SessionState {
+        IDLE,
+        WAITING_FOR_OPEN,
+        MONITORING_PRESENCE
+    }
+
     companion object {
-        const val ACTION_START_ADVERTISING = "com.example.doorlock.action.START_ADVERTISING"
+        @Volatile
+        private var activeSession = false
+
+        fun isSessionActive(): Boolean = activeSession
+
+        const val ACTION_ENTRY_SIGNAL = "com.example.doorlock.action.ENTRY_SIGNAL"
+        const val ACTION_OPEN_CONFIRMED = "com.example.doorlock.action.OPEN_CONFIRMED"
+        const val ACTION_HEARTBEAT = "com.example.doorlock.action.HEARTBEAT"
         const val ACTION_STOP_ADVERTISING = "com.example.doorlock.action.STOP_ADVERTISING"
+        const val EXTRA_STUDENT_ID = "student_id"
+
+        private const val initialAdvertiseDurationMillis = 5_000L
+        private const val openConfirmationTimeoutMillis = 10_000L
+        private const val heartbeatTimeoutMillis = 30_000L
+        private const val heartbeatCheckIntervalMillis = 1_000L
         private const val channelId = "ble_relay_status"
         private const val notificationId = 2002
         private const val tag = "BleRelayService"
