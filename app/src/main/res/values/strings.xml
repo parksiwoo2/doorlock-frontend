@@ -1,24 +1,28 @@
 <resources>
     <string name="app_name">BLE Relay</string>
-    <string name="setup_title">기기 연결 준비</string>
-    <string name="setup_preparing">최초 설정을 시작합니다…</string>
-    <string name="student_id_description">BLE로 전송할 학번 10자리를 입력해 주세요.</string>
-    <string name="student_id_hint">학번 10자리</string>
-    <string name="student_id_continue">저장하고 계속</string>
+
+    <!-- Compose 학번 등록 화면(LoginViewModel/StudentIdRepository)이 검증 오류 메시지로 재사용 -->
     <string name="student_id_error">학번은 숫자 10자리여야 합니다.</string>
-    <string name="setup_retry">다시 시도</string>
-    <string name="setup_retry_description">설정을 계속하려면 다시 시도해 주세요.</string>
-    <string name="main_title">Doorlock</string>
-    <string name="main_placeholder">기본 페이지 영역입니다. 이후 실제 화면으로 교체할 수 있습니다.</string>
+
+    <!-- HomeViewModel이 실시간 BLE 상태 표시에 사용 -->
     <string name="status_not_configured">상태: 설정 필요</string>
     <string name="status_watching_0312">0312 감시 상태\n앱이 백그라운드에 있어도 진입 신호를 감시합니다.</string>
     <string name="status_requesting_open">문 열림 요청\n1111과 학번을 보내며 2222 응답을 기다립니다.</string>
     <string name="status_inside_room">동방 안에 있음\n저전력 1111 광고와 3333 heartbeat를 주고받는 상태입니다.</string>
-    <string name="status_waiting">상태: 동반 기기 선택 대기 중</string>
+
+    <!-- BLE 쪽 코드(BleRelayService)가 그대로 사용 중 — 변경하지 않음 -->
     <string name="notification_channel_name">BLE Relay 상태</string>
     <string name="notification_detected_title">문 열림 확인 대기 중</string>
     <string name="notification_detected_text">학번을 5초간 빠르게 송신하며 2222 응답을 기다립니다.</string>
     <string name="notification_session_title">문 열림 확인됨</string>
     <string name="notification_session_text">학번을 저전력으로 송신하며 3333 근접 신호를 확인합니다.</string>
     <string name="stop_advertising">BLE 세션 중지</string>
+
+    <!--
+        아래는 기존 XML 기반 setup 화면(activity_main.xml)에서만 쓰이던 문자열입니다.
+        해당 화면이 Compose(Splash/학번 등록 화면)로 대체되면서 더 이상 참조하는 곳이 없어 삭제했습니다.
+        (제거된 항목: setup_title, setup_preparing, student_id_description, student_id_hint,
+         student_id_continue, setup_retry, setup_retry_description, main_title,
+         main_placeholder, status_waiting)
+    -->
 </resources>

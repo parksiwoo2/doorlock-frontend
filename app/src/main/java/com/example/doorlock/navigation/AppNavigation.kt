@@ -11,6 +11,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.doorlock.ble.BleSetupCoordinator
 import com.example.doorlock.ui.home.HomeScreen
 import com.example.doorlock.ui.history.EntryHistoryScreen
 import com.example.doorlock.ui.login.LoginScreen
@@ -29,7 +30,7 @@ sealed class AppRoute(val route: String) {
 }
 
 @Composable
-fun AppNavigation() {
+fun AppNavigation(bleSetupCoordinator: BleSetupCoordinator) {
     val navController = rememberNavController()
 
     NavHost(
@@ -38,6 +39,7 @@ fun AppNavigation() {
     ) {
         composable(AppRoute.Splash.route) {
             SplashScreen(
+                coordinator = bleSetupCoordinator,
                 onNavigateToRegister = {
                     navController.navigate(AppRoute.Register.route) {
                         popUpTo(AppRoute.Splash.route) {
@@ -55,13 +57,16 @@ fun AppNavigation() {
             )
         }
         composable(AppRoute.Register.route) {
-            LoginScreen(onRegisterSuccess = {
-                navController.navigate(AppRoute.HomeRoot.route) {
-                    popUpTo(AppRoute.Register.route) {
-                        inclusive = true
+            LoginScreen(
+                coordinator = bleSetupCoordinator,
+                onRegisterSuccess = {
+                    navController.navigate(AppRoute.HomeRoot.route) {
+                        popUpTo(AppRoute.Register.route) {
+                            inclusive = true
+                        }
                     }
                 }
-            })
+            )
         }
         composable(AppRoute.HomeRoot.route) {
             HomeRootScreen(rootNavController = navController)

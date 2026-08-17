@@ -19,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -36,6 +37,12 @@ fun SettingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val currentUser by UserSession.user.collectAsState()
+
+    LaunchedEffect(uiState.unregistered) {
+        if (uiState.unregistered) {
+            onUnregistered()
+        }
+    }
 
     Surface(
         modifier = Modifier
@@ -88,15 +95,10 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.height(20.dp))
                     Button(
-                        onClick = {
-                            viewModel.unregister { success ->
-                                if (success) onUnregistered()
-                            }
-                        },
+                        onClick = { viewModel.onUnregisterClicked() },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(52.dp),
-                        enabled = !uiState.isLoading
+                            .height(52.dp)
                     ) {
                         Image(
                             painter = painterResource(id = R.drawable.ic_logout),
@@ -104,7 +106,7 @@ fun SettingsScreen(
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = if (uiState.isLoading) "처리 중..." else "등록 해제")
+                        Text(text = "등록 해제")
                     }
                     if (uiState.message.isNotBlank()) {
                         Spacer(modifier = Modifier.height(16.dp))

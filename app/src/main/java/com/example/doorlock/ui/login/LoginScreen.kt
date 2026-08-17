@@ -20,6 +20,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -30,21 +31,28 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.doorlock.R
+import com.example.doorlock.ble.BleSetupCoordinator
 
 /**
  * 학번 등록 화면.
- *
- * 기존 "학번 + 비밀번호 로그인" 화면에서, 비밀번호 입력/표시 토글을 완전히 제거하고
- * 학번만 입력받아 기기에 등록하는 화면으로 변경되었습니다.
- * 레이아웃 구조(로고 카드 + 입력 카드)는 기존과 최대한 동일하게 유지했습니다.
+ * 비밀번호 입력/표시 토글은 완전히 제거되었고, 학번만 입력받아 기기에 등록합니다.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(
+    coordinator: BleSetupCoordinator,
     viewModel: LoginViewModel = viewModel(),
     onRegisterSuccess: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
+
+    // 등록이 완료되면(=Repository 저장 성공) BLE 초기 설정을 시작하고 Home으로 이동합니다.
+    LaunchedEffect(uiState.registrationComplete) {
+        if (uiState.registrationComplete) {
+            coordinator.beginConfiguration()
+            onRegisterSuccess()
+        }
+    }
 
     Surface(
         modifier = Modifier
@@ -104,7 +112,7 @@ fun LoginScreen(
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "BLE 자동 출입에 사용할 학번을 이 기기에 등록합니다.",
+                        text = "BLE 자동 출입에 사용할 학번 10자리를 이 기기에 등록합니다.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
                     )
@@ -113,7 +121,7 @@ fun LoginScreen(
                         value = uiState.studentId,
                         onValueChange = viewModel::onStudentIdChange,
                         label = { Text(text = "학번") },
-                        placeholder = { Text(text = "예: 2026xxxxxx") },
+                        placeholder = { Text(text = "예: 2026123456") },
                         singleLine = true,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -124,16 +132,13 @@ fun LoginScreen(
                     Button(
                         onClick = {
                             viewModel.clearError()
-                            viewModel.register { success ->
-                                if (success) onRegisterSuccess()
-                            }
+                            viewModel.register()
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(52.dp),
-                        enabled = !uiState.isLoading
+                            .height(52.dp)
                     ) {
-                        Text(text = if (uiState.isLoading) "등록 중..." else "등록")
+                        Text(text = "등록")
                     }
                     if (uiState.errorMessage.isNotBlank()) {
                         Spacer(modifier = Modifier.height(10.dp))

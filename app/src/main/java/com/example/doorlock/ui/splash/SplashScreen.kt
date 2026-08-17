@@ -31,16 +31,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.doorlock.R
+import com.example.doorlock.ble.BleSetupCoordinator
 
 /**
  * 스플래시 화면.
- *
  * 기기에 이미 등록된 학번이 있는지 확인하고(DataStore),
- * - 있으면: 학번 등록 화면을 건너뛰고 자동으로 Home으로 이동
+ * - 있으면: 학번 등록 화면을 건너뛰고 자동으로 Home으로 이동 + BLE 설정 상태 확인
  * - 없으면: 학번 등록 화면으로 이동할 수 있는 버튼을 표시
  */
 @Composable
 fun SplashScreen(
+    coordinator: BleSetupCoordinator,
     onNavigateToRegister: () -> Unit,
     onNavigateToHome: () -> Unit,
     viewModel: SplashViewModel = viewModel()
@@ -48,9 +49,10 @@ fun SplashScreen(
     val uiState by viewModel.uiState.collectAsState()
     val destination by viewModel.destination.collectAsState()
 
-    // 등록된 학번이 확인되면(=Home), 사용자 조작 없이 바로 이동합니다.
     LaunchedEffect(destination) {
         if (destination is SplashDestination.Home) {
+            // 이미 등록된 학번이 있는 상태로 다시 열린 경우: BLE 설정이 살아있는지 확인만 하고 조용히 진행.
+            coordinator.ensureConfigured(showToast = false)
             onNavigateToHome()
         }
     }
@@ -105,17 +107,14 @@ fun SplashScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             if (destination == null) {
-                // 아직 DataStore 확인 중
                 CircularProgressIndicator(
                     color = MaterialTheme.colorScheme.primary
                 )
             } else if (destination is SplashDestination.Register) {
-                // 등록된 학번이 없을 때만 버튼을 보여주고, 사용자가 직접 넘어갑니다.
                 Button(onClick = onNavigateToRegister) {
                     Text(text = "학번 등록하러 가기")
                 }
             }
-            // destination이 Home인 경우는 LaunchedEffect에서 바로 이동하므로 버튼을 보여주지 않습니다.
         }
     }
 }
