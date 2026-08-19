@@ -1,0 +1,13 @@
+{
+    "java.configuration.updateBuildConfiguration": "interactive",
+    "chat.tools.terminal.autoApprove": {
+        "/^\\.\\\\gradlew\\.bat --stop ; \\.\\\\gradlew\\.bat assembleDebug --stacktrace$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cmd /c \"findstr /n /r \"\\.\\*\" build\\.gradle\\.kts ;& echo ==== ;& findstr /n /r \"\\.\\*\" app\\\\build\\.gradle\\.kts ;& echo ==== ;& findstr /n /r \"\\.\\*\" settings\\.gradle\\.kts\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

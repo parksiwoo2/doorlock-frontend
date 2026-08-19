@@ -1,78 +1,22 @@
 package com.example.doorlock
 
-import android.Manifest
-import android.app.Activity
-import android.companion.AssociationInfo
-import android.companion.AssociationRequest
-import android.companion.BluetoothLeDeviceFilter
-import android.companion.CompanionDeviceManager
-import android.content.Context
-import android.content.IntentSender
-import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
-import android.view.View
-import android.view.inputmethod.InputMethodManager
-import android.widget.Button
-import android.widget.EditText
-import android.widget.TextView
-import android.widget.Toast
-import androidx.activity.result.IntentSenderRequest
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import com.example.doorlock.navigation.AppNavigation
+import com.example.doorlock.theme.DoorlockTheme
 
-class MainActivity : AppCompatActivity() {
-    private val mainHandler = Handler(Looper.getMainLooper())
-    private lateinit var setupContainer: View
-    private lateinit var mainContainer: View
-    private lateinit var setupProgress: View
-    private lateinit var statusText: TextView
-    private lateinit var relayStatusText: TextView
-    private lateinit var retryButton: Button
-    private lateinit var studentIdContainer: View
-    private lateinit var studentIdInput: EditText
-    private lateinit var saveStudentIdButton: Button
-    private var chooserOpen = false
-    private var initialSetupStarted = false
-
-    private val cdmManager by lazy {
-        getSystemService(Context.COMPANION_DEVICE_SERVICE) as CompanionDeviceManager
-    }
-
-    private val permissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) {
-        if (hasRequiredBlePermissions()) {
-            configureCompanionAndScan()
-        } else {
-            showSetupError("필수 Bluetooth 권한이 거부되었습니다.")
-        }
-    }
-
-    private val associationLauncher = registerForActivityResult(
-        ActivityResultContracts.StartIntentSenderForResult()
-    ) { result ->
-        chooserOpen = false
-        if (result.resultCode == Activity.RESULT_OK) {
-            RelayStatusStore.addEvent(this, "동반 기기 등록 완료")
-            registerBackgroundScan()
-        } else {
-            showSetupError("동반 기기 등록이 취소되었습니다.")
-        }
-    }
-
-    private val refreshTask = object : Runnable {
-        override fun run() {
-            refreshStatus()
-            mainHandler.postDelayed(this, 1_000L)
-        }
-    }
-
+class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+<<<<<<< HEAD
+        setContent {
+            DoorlockTheme {
+                AppNavigation()
+            }
+        }
+    }
+=======
         setContentView(R.layout.activity_main)
         setupContainer = findViewById(R.id.setup_container)
         mainContainer = findViewById(R.id.main_container)
@@ -323,4 +267,5 @@ class MainActivity : AppCompatActivity() {
             }
         )
     }
+>>>>>>> origin/main
 }
