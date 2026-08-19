@@ -15,9 +15,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,10 +31,12 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.doorlock.R
+import com.example.doorlock.ble.BleSetupCoordinator
 import com.example.doorlock.data.UserSession
 
 @Composable
 fun HomeScreen(
+    coordinator: BleSetupCoordinator,
     viewModel: HomeViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -70,9 +74,6 @@ fun HomeScreen(
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
-                        // 학번을 이름 자리에 중복 표시하던 임시 UI 제거.
-                        // 실제 이름을 제공하는 서버 기능이 아직 없으므로,
-                        // "등록된 학번"이라는 라벨과 함께 값을 한 번만 명확히 표시합니다.
                         Text(
                             text = "등록된 학번",
                             style = MaterialTheme.typography.bodyMedium,
@@ -117,30 +118,56 @@ fun HomeScreen(
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.85f)
                         )
-                        Spacer(modifier = Modifier.height(18.dp))
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Spacer(modifier = Modifier.width(18.dp))
-                            Text(
-                                text = "BLE 감지 정상",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(vertical = 10.dp)
-                            )
+
+                        if (uiState.needsSetup) {
+                            // 최초 설정이 실패했거나(권한 거부, 페어링 실패 등) 아직 등록되지 않은 경우에만
+                            // 노출되는 실제 동작 버튼. BleSetupCoordinator.retry()를 호출해
+                            // 권한요청 → CDM 페어링 → 스캔등록을 처음부터 다시 시도합니다.
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Button(
+                                onClick = { coordinator.retry() },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(text = "BLE 다시 연결")
+                            }
+                        } else {
+                            Spacer(modifier = Modifier.height(18.dp))
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Spacer(modifier = Modifier.width(18.dp))
+                                Text(
+                                    text = "BLE 감지 정상",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(vertical = 10.dp)
+                                )
+                            }
                         }
                     }
                 }
             }
 
             item {
-                Text(
-                    text = "최근 출입",
-                    style = MaterialTheme.typography.titleMedium
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "최근 출입",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.weight(1f)
+                    )
+                    // 아직 서버 연동 전이라 데이터를 새로 가져오진 않지만,
+                    // 화면이 완전히 정적인 장식으로 남지 않도록 눌러볼 수 있는 버튼을 배치했습니다.
+                    // TODO: 실제 출입 기록 API 연동 시 이 버튼이 새로고침을 트리거하도록 연결.
+                    OutlinedButton(onClick = { /* TODO: 출입 기록 새로고침 연동 */ }) {
+                        Text(text = "새로고침", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
                 Spacer(modifier = Modifier.height(10.dp))
                 Card(
                     modifier = Modifier.fillMaxWidth(),

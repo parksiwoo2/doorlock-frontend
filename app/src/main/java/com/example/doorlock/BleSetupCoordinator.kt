@@ -118,6 +118,16 @@ class BleSetupCoordinator(private val activity: ComponentActivity) {
         }
     }
 
+    /**
+     * 최초 설정이 실패(권한 거부, 페어링 실패 등)했을 때 사용자가 Home 화면에서
+     * "다시 연결" 버튼을 눌러 수동으로 재시도할 수 있도록 합니다.
+     * beginConfiguration()의 1회성 가드를 초기화한 뒤 다시 실행합니다.
+     */
+    fun retry() {
+        initialSetupStarted = false
+        beginConfiguration()
+    }
+
     private fun configureCompanionAndScan() {
         if (!activity.packageManager.hasSystemFeature(PackageManager.FEATURE_COMPANION_DEVICE_SETUP)) {
             RelayStatusStore.addEvent(activity, "이 기기는 CDM을 지원하지 않아 PendingIntent 스캔만 사용합니다.")

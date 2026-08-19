@@ -69,14 +69,20 @@ fun AppNavigation(bleSetupCoordinator: BleSetupCoordinator) {
             )
         }
         composable(AppRoute.HomeRoot.route) {
-            HomeRootScreen(rootNavController = navController)
+            HomeRootScreen(
+                rootNavController = navController,
+                bleSetupCoordinator = bleSetupCoordinator
+            )
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun HomeRootScreen(rootNavController: NavHostController) {
+private fun HomeRootScreen(
+    rootNavController: NavHostController,
+    bleSetupCoordinator: BleSetupCoordinator
+) {
     val innerNavController = rememberNavController()
     val destinations = remember {
         listOf(
@@ -100,7 +106,7 @@ private fun HomeRootScreen(rootNavController: NavHostController) {
             modifier = Modifier.padding(contentPadding)
         ) {
             composable(BottomNavDestination.Home.route) {
-                HomeScreen()
+                HomeScreen(coordinator = bleSetupCoordinator)
             }
             composable(BottomNavDestination.EntryHistory.route) {
                 EntryHistoryScreen()
