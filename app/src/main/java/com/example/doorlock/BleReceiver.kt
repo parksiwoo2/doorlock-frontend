@@ -59,7 +59,7 @@ class BleReceiver : BroadcastReceiver() {
             BlePayloadCodec.openSessionToken(serviceData[BleConstants.openParcelUuid], it)
         }
         val hasHeartbeatSignal = sessionToken != null &&
-            BlePayloadCodec.matchesHeartbeat(
+            BlePayloadCodec.matchesHeartbeatRoster(
                 serviceData[BleConstants.heartbeatParcelUuid],
                 sessionToken
             )

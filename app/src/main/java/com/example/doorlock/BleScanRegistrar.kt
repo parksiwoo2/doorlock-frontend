@@ -96,12 +96,12 @@ object BleScanRegistrar {
     }
 
     private fun buildHeartbeatFilters(context: Context): List<ScanFilter>? {
-        val sessionToken = RelayStatusStore.sessionToken(context) ?: return null
+        RelayStatusStore.sessionToken(context) ?: return null
         return listOf(
             ScanFilter.Builder()
                 .setServiceData(
                     BleConstants.heartbeatParcelUuid,
-                    BlePayloadCodec.heartbeat(sessionToken)
+                    byteArrayOf()
                 )
                 .build()
         )

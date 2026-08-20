@@ -107,8 +107,8 @@ object RelayStatusStore {
             .getBoolean(presenceVisibleKey, true)
 
     fun setSessionToken(context: Context, sessionToken: Int?) {
-        require(sessionToken == null || sessionToken in 0..255) {
-            "Session token must fit in one byte."
+        require(sessionToken == null || sessionToken in 1..255) {
+            "Session token must be between 1 and 255."
         }
         val editor = context.getSharedPreferences(preferencesName, Context.MODE_PRIVATE).edit()
         if (sessionToken == null) {
@@ -122,7 +122,7 @@ object RelayStatusStore {
     fun sessionToken(context: Context): Int? =
         context.getSharedPreferences(preferencesName, Context.MODE_PRIVATE)
             .getInt(sessionTokenKey, -1)
-            .takeIf { it in 0..255 }
+            .takeIf { it in 1..255 }
 
     enum class RelayPhase {
         WATCHING_0312,

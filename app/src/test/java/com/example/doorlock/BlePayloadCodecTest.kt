@@ -2,6 +2,7 @@ package com.example.doorlock
 
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -31,14 +32,30 @@ class BlePayloadCodecTest {
 
         assertEquals(254, BlePayloadCodec.openSessionToken(payload, "2023123456"))
         assertNull(BlePayloadCodec.openSessionToken(payload, "2023123457"))
+        assertNull(
+            BlePayloadCodec.openSessionToken(
+                BlePayloadCodec.encodeStudentId("2023123456") + byteArrayOf(0),
+                "2023123456"
+            )
+        )
     }
 
     @Test
-    fun presenceHeartbeat_usesSessionTokenInsteadOfStudentId() {
+    fun presenceHeartbeat_findsSessionTokenIn24ByteRoster() {
         assertArrayEquals(
             byteArrayOf(200.toByte(), 1),
             BlePayloadCodec.presenceAdvertisement(200, true)
         )
-        assertTrue(BlePayloadCodec.matchesHeartbeat(byteArrayOf(200.toByte()), 200))
+        val roster = ByteArray(BlePayloadCodec.heartbeatRosterLength)
+        roster[17] = 200.toByte()
+
+        assertTrue(BlePayloadCodec.matchesHeartbeatRoster(roster, 200))
+        assertFalse(BlePayloadCodec.matchesHeartbeatRoster(roster, 199))
+        assertFalse(BlePayloadCodec.matchesHeartbeatRoster(byteArrayOf(200.toByte()), 200))
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun sessionToken_zeroIsReservedForEmptyRosterSlots() {
+        BlePayloadCodec.presenceAdvertisement(0, true)
     }
 }

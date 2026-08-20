@@ -5,7 +5,7 @@ internal object BlePayloadCodec {
     const val initialAdvertisementLength = encodedStudentIdLength + 1
     const val openConfirmationLength = encodedStudentIdLength + 1
     const val presenceAdvertisementLength = 2
-    const val heartbeatLength = 1
+    const val heartbeatRosterLength = 24
 
     private const val visibleValue = 1
     private const val hiddenValue = 0
@@ -49,22 +49,25 @@ internal object BlePayloadCodec {
         for (index in encodedStudentId.indices) {
             if (payload[index] != encodedStudentId[index]) return null
         }
-        return payload.last().toInt() and 0xFF
+        return (payload.last().toInt() and 0xFF).takeIf { it in 1..255 }
     }
 
     fun presenceAdvertisement(sessionToken: Int, presenceVisible: Boolean): ByteArray =
         byteArrayOf(tokenByte(sessionToken), visibilityByte(presenceVisible))
 
-    fun heartbeat(sessionToken: Int): ByteArray = byteArrayOf(tokenByte(sessionToken))
-
-    fun matchesHeartbeat(payload: ByteArray?, sessionToken: Int): Boolean =
-        payload?.contentEquals(heartbeat(sessionToken)) == true
+    fun matchesHeartbeatRoster(payload: ByteArray?, sessionToken: Int): Boolean {
+        if (payload == null || payload.size != heartbeatRosterLength) return false
+        val expectedToken = tokenByte(sessionToken)
+        return payload.any { it == expectedToken }
+    }
 
     private fun visibilityByte(presenceVisible: Boolean): Byte =
         if (presenceVisible) visibleValue.toByte() else hiddenValue.toByte()
 
     private fun tokenByte(sessionToken: Int): Byte {
-        require(sessionToken in 0..255) { "Session token must fit in one byte." }
+        require(sessionToken in 1..255) {
+            "Session token must be between 1 and 255; 0 is reserved for an empty roster slot."
+        }
         return sessionToken.toByte()
     }
 

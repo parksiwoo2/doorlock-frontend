@@ -73,7 +73,7 @@ class BleRelayService : Service() {
         override fun run() {
             if (state != SessionState.MONITORING_PRESENCE) return
             if (hasHeartbeatTimedOut()) {
-                stopSession("내 세션 번호가 담긴 3333 신호를 30초 동안 받지 못해 BLE 세션을 종료합니다.")
+                stopSession("3333의 24바이트 목록에서 내 세션 번호를 30초 동안 확인하지 못해 BLE 세션을 종료합니다.")
             } else {
                 handler.postDelayed(this, heartbeatCheckIntervalMillis)
             }
@@ -94,7 +94,7 @@ class BleRelayService : Service() {
             ACTION_OPEN_CONFIRMED -> {
                 ensureForegroundStarted()
                 val receivedSessionToken = intent.getIntExtra(EXTRA_SESSION_TOKEN, -1)
-                if (!hasMatchingStudentId(intent) || receivedSessionToken !in 0..255) {
+                if (!hasMatchingStudentId(intent) || receivedSessionToken !in 1..255) {
                     if (state == SessionState.IDLE) {
                         stopSession("학번 또는 세션 번호가 올바르지 않은 2222 신호를 무시했습니다.")
                     }
@@ -322,7 +322,7 @@ class BleRelayService : Service() {
 
     private fun hasMatchingSessionToken(intent: Intent): Boolean {
         val receivedSessionToken = intent.getIntExtra(EXTRA_SESSION_TOKEN, -1)
-        return receivedSessionToken in 0..255 &&
+        return receivedSessionToken in 1..255 &&
             receivedSessionToken == sessionToken &&
             receivedSessionToken == RelayStatusStore.sessionToken(this)
     }
