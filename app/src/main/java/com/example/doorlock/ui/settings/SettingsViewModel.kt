@@ -1,8 +1,10 @@
 package com.example.doorlock.ui.settings
 
 import android.app.Application
+import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.doorlock.BleRelayService
 import com.example.doorlock.data.StudentIdRepository
 import com.example.doorlock.data.UserSession
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,32 +20,39 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     /**
      * 등록된 학번을 이 기기에서 해제합니다.
-     * UserSession(메모리)를 지우기 전에 DataStore에서 먼저 해제합니다.
+     * DataStore 삭제가 성공했을 때만 UserSession을 비우고, 남아있을 수 있는
+     * BLE 세션(광고/스캔)에는 기존에 공개된 STOP 액션만 전달합니다
+     * (BLE 쪽 로직 자체는 수정하지 않음).
      */
-    fun unregister(onComplete: (Boolean) -> Unit) {
-        _uiState.value = _uiState.value.copy(isLoading = true)
+    fun onUnregisterClicked() {
         viewModelScope.launch {
-            val result = repository.clearStudentId()
-            if (result.isSuccess) {
-                UserSession.clear()
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    message = "학번 등록을 해제했습니다."
-                )
-                onComplete(true)
-            } else {
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    message = "등록 해제에 실패했습니다. 다시 시도해 주세요."
-                )
-                onComplete(false)
-            }
+            repository.clearStudentId()
+                .onSuccess {
+                    UserSession.clear()
+                    stopAnyActiveBleSession()
+                    _uiState.value = _uiState.value.copy(
+                        message = "학번 등록을 해제했습니다.",
+                        unregistered = true
+                    )
+                }
+                .onFailure { error ->
+                    _uiState.value = _uiState.value.copy(
+                        message = error.message ?: "등록 해제에 실패했습니다."
+                    )
+                }
         }
+    }
+
+    private fun stopAnyActiveBleSession() {
+        val context = getApplication<Application>()
+        val intent = Intent(context, BleRelayService::class.java)
+            .setAction(BleRelayService.ACTION_STOP_ADVERTISING)
+        context.startService(intent)
     }
 }
 
 data class SettingsUiState(
     val appVersion: String = "1.0",
     val message: String = "",
-    val isLoading: Boolean = false
+    val unregistered: Boolean = false
 )

@@ -12,9 +12,9 @@ import kotlinx.coroutines.launch
 /**
  * 학번 등록 화면의 ViewModel.
  *
- * 기존에는 학번 + 비밀번호를 검증하는 "로그인" 개념이었지만,
- * 이제는 비밀번호 인증 없이 학번만 기기에 등록하는 구조로 변경되었습니다.
- * (요구사항: 비밀번호 필드/상태/로직 완전 제거)
+ * 학번 변경은 항상 [StudentIdRepository]를 거치며, DataStore 쓰기가 성공했을 때만
+ * UserSession(메모리 캐시)을 갱신합니다. 즉 DataStore가 원본, UserSession은 그 결과를
+ * 따라가는 캐시라는 원칙을 코드로 강제합니다.
  */
 class LoginViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -28,31 +28,33 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * 학번을 기기에 등록합니다.
-     * DataStore 저장이 성공한 경우에만 UserSession을 갱신합니다.
+     * 학번을 기기에 등록합니다. 입력이 비어 있으면 즉시 오류를 표시하고,
+     * 그 외의 형식 검증(숫자 10자리)과 실제 저장은 Repository가 전담합니다.
+     * 등록이 완료되면 [LoginUiState.registrationComplete] 가 true 로 바뀌며,
+     * 화면(LoginScreen)이 이를 관찰해서 다음 동작(Home 이동, BLE 설정 시작)을 트리거합니다.
      */
-    fun register(onComplete: (Boolean) -> Unit) {
+    fun register() {
         val id = _uiState.value.studentId.trim()
         if (id.isEmpty()) {
             _uiState.value = _uiState.value.copy(errorMessage = "학번을 입력해 주세요.")
-            onComplete(false)
             return
         }
 
-        _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = "")
         viewModelScope.launch {
-            val result = repository.registerStudentId(id)
-            if (result.isSuccess) {
-                UserSession.setUser(id)
-                _uiState.value = _uiState.value.copy(isLoading = false, errorMessage = "")
-                onComplete(true)
-            } else {
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    errorMessage = "등록에 실패했습니다. 다시 시도해 주세요."
-                )
-                onComplete(false)
-            }
+            repository.registerStudentId(id)
+                .onSuccess {
+                    // DataStore 쓰기가 성공한 뒤에만 UserSession을 갱신합니다.
+                    UserSession.setUser(id)
+                    _uiState.value = _uiState.value.copy(
+                        errorMessage = "",
+                        registrationComplete = true
+                    )
+                }
+                .onFailure { error ->
+                    _uiState.value = _uiState.value.copy(
+                        errorMessage = error.message ?: "등록에 실패했습니다."
+                    )
+                }
         }
     }
 
@@ -64,5 +66,5 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
 data class LoginUiState(
     val studentId: String = "",
     val errorMessage: String = "",
-    val isLoading: Boolean = false
+    val registrationComplete: Boolean = false
 )
