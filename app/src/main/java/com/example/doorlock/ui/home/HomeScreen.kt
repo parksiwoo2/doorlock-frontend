@@ -19,7 +19,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,6 +33,10 @@ import com.example.doorlock.R
 import com.example.doorlock.ble.BleSetupCoordinator
 import com.example.doorlock.data.UserSession
 
+/**
+ * Home 화면. BLE 자동 출입 상태만 다룹니다.
+ * 출입 기록/재실자 확인은 History 탭(EntryHistoryScreen)으로 이동했습니다.
+ */
 @Composable
 fun HomeScreen(
     coordinator: BleSetupCoordinator,
@@ -145,67 +148,6 @@ fun HomeScreen(
                                     color = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.padding(vertical = 10.dp)
                                 )
-                            }
-                        }
-                    }
-                }
-            }
-
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "최근 출입",
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.weight(1f)
-                    )
-                    // 아직 서버 연동 전이라 데이터를 새로 가져오진 않지만,
-                    // 화면이 완전히 정적인 장식으로 남지 않도록 눌러볼 수 있는 버튼을 배치했습니다.
-                    // TODO: 실제 출입 기록 API 연동 시 이 버튼이 새로고침을 트리거하도록 연결.
-                    OutlinedButton(onClick = { /* TODO: 출입 기록 새로고침 연동 */ }) {
-                        Text(text = "새로고침", style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-                Spacer(modifier = Modifier.height(10.dp))
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.medium,
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Column(modifier = Modifier.padding(18.dp)) {
-                        if (uiState.recentRecords.isEmpty()) {
-                            Text(
-                                text = "아직 출입 기록이 없습니다.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
-                            )
-                        } else {
-                            uiState.recentRecords.take(2).forEach { record ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Image(
-                                        painter = painterResource(id = R.drawable.ic_schedule),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Column {
-                                        Text(
-                                            text = record.timestamp,
-                                            style = MaterialTheme.typography.bodyLarge
-                                        )
-                                        Text(
-                                            text = record.description,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.65f)
-                                        )
-                                    }
-                                }
-                                Spacer(modifier = Modifier.height(14.dp))
                             }
                         }
                     }

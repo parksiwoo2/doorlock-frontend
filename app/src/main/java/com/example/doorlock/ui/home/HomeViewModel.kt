@@ -5,13 +5,15 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.doorlock.R
 import com.example.doorlock.RelayStatusStore
-import com.example.doorlock.ui.history.EntryRecord
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 /**
+ * Home 화면은 BLE 자동 출입 상태만 보여줍니다.
+ * 출입 기록/재실자 관련 내용은 History 탭(EntryHistoryScreen)에서 전담합니다.
+ *
  * 기존 XML MainActivity의 main_container에 있던 "relay_status_text" 실시간 상태 표시를
  * 복원한 것입니다. BLE 로직을 새로 만들지 않고, BLE 팀이 이미 공개해 둔 읽기 전용
  * 저장소(RelayStatusStore)를 그대로 읽기만 합니다. 갱신 주기(1초)도 기존
@@ -67,9 +69,5 @@ data class HomeUiState(
     val connectionStatus: String = "BLE 감지 중",
     // BLE 스캔이 아직 등록되지 않은 상태(권한 거부/페어링 실패 등)인지 여부.
     // true면 HomeScreen이 "다시 연결" 버튼을 보여줍니다.
-    val needsSetup: Boolean = false,
-    val recentRecords: List<EntryRecord> = listOf(
-        EntryRecord("2026-08-03 18:31", "입실"),
-        EntryRecord("2026-08-03 19:12", "퇴실")
-    )
+    val needsSetup: Boolean = false
 )
