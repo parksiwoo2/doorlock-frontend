@@ -7,15 +7,15 @@
     <!-- HomeViewModel이 실시간 BLE 상태 표시에 사용 -->
     <string name="status_not_configured">상태: 설정 필요</string>
     <string name="status_watching_0312">0312 감시 상태\n앱이 백그라운드에 있어도 진입 신호를 감시합니다.</string>
-    <string name="status_requesting_open">문 열림 요청\n1111과 학번을 보내며 2222 응답을 기다립니다.</string>
-    <string name="status_inside_room">동방 안에 있음\n저전력 1111 광고와 3333 heartbeat를 주고받는 상태입니다.</string>
+    <string name="status_requesting_open">문 열림 요청\n1111로 난독화 학번과 공개 여부를 보내며 2222 응답을 기다립니다.</string>
+    <string name="status_inside_room">동방 안에 있음\n저전력 1111을 송신하고 3333의 24바이트 세션 목록을 확인하는 상태입니다.</string>
 
     <!-- BLE 쪽 코드(BleRelayService)가 그대로 사용 중 — 변경하지 않음 -->
     <string name="notification_channel_name">BLE Relay 상태</string>
     <string name="notification_detected_title">문 열림 확인 대기 중</string>
-    <string name="notification_detected_text">학번을 5초간 빠르게 송신하며 2222 응답을 기다립니다.</string>
+    <string name="notification_detected_text">난독화 학번과 공개 여부를 5초간 송신하며 2222 응답을 기다립니다.</string>
     <string name="notification_session_title">문 열림 확인됨</string>
-    <string name="notification_session_text">학번을 저전력으로 송신하며 3333 근접 신호를 확인합니다.</string>
+    <string name="notification_session_text">세션 번호를 저전력으로 송신하며 3333의 세션 목록을 확인합니다.</string>
     <string name="stop_advertising">BLE 세션 중지</string>
 
     <!--

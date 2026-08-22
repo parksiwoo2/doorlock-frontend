@@ -1,5 +1,6 @@
 package com.example.doorlock
 
+import android.annotation.SuppressLint
 import android.Manifest
 import android.app.PendingIntent
 import android.bluetooth.BluetoothManager
@@ -27,24 +28,18 @@ object BleScanRegistrar {
         }
         val scanner = adapter.bluetoothLeScanner
             ?: return RegistrationResult(false, "BLE 스캐너를 사용할 수 없습니다.")
-        val callbackIntent = PendingIntent.getBroadcast(
-            context,
-            312,
-            Intent(context, BleReceiver::class.java).setAction(BleReceiver.ACTION_SCAN_RESULT),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-        )
+        val callbackIntent = callbackIntent(context, mode)
         val filters = buildFilters(context, mode)
-            ?: return RegistrationResult(false, "저장된 학번이 없어 BLE 스캔을 등록할 수 없습니다.")
+            ?: return RegistrationResult(false, mode.missingDataMessage)
         val settings = ScanSettings.Builder()
             .setScanMode(mode.platformScanMode)
             .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
             .setReportDelay(0L)
             .build()
         return try {
-            scanner.stopScan(callbackIntent)
+            stopRegisteredScans(context, scanner)
             val errorCode = scanner.startScan(filters, settings, callbackIntent)
-            val success = errorCode == 0 ||
-                errorCode == ScanCallback.SCAN_FAILED_ALREADY_STARTED
+            val success = isSuccessfulScanStart(errorCode)
             if (success) {
                 RelayStatusStore.setScanRegistered(context, true)
                 RelayStatusStore.setRelayPhase(context, mode.relayPhase)
@@ -58,6 +53,34 @@ object BleScanRegistrar {
             RegistrationResult(false, "BLE 스캔 권한 오류: ${exception.message}")
         }
     }
+
+    private fun callbackIntent(context: Context, mode: ScanMode): PendingIntent =
+        PendingIntent.getBroadcast(
+            context,
+            mode.pendingIntentRequestCode,
+            Intent(context, BleReceiver::class.java).setAction(BleReceiver.ACTION_SCAN_RESULT),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+        )
+
+    // register() verifies BLUETOOTH_SCAN before this helper is reached.
+    @SuppressLint("MissingPermission")
+    private fun stopRegisteredScans(
+        context: Context,
+        scanner: android.bluetooth.le.BluetoothLeScanner
+    ) {
+        scanner.stopScan(legacyCallbackIntent(context))
+        ScanMode.entries.forEach { mode -> scanner.stopScan(callbackIntent(context, mode)) }
+    }
+
+    private fun legacyCallbackIntent(context: Context): PendingIntent =
+        PendingIntent.getBroadcast(
+            context,
+            legacyPendingIntentRequestCode,
+            Intent(context, BleReceiver::class.java).setAction(BleReceiver.ACTION_SCAN_RESULT),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+        )
+
+    internal fun isSuccessfulScanStart(errorCode: Int): Boolean = errorCode == 0
 
     private fun hasScanPermission(context: Context): Boolean =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -77,27 +100,31 @@ object BleScanRegistrar {
                 .build()
         )
 
-        ScanMode.OPEN_CONFIRMATION -> buildRaspberrySignalFilters(
-            context,
-            BleConstants.openParcelUuid
-        )
+        ScanMode.OPEN_CONFIRMATION -> buildOpenConfirmationFilters(context)
 
-        ScanMode.PRESENCE_MONITORING -> buildRaspberrySignalFilters(
-            context,
-            BleConstants.heartbeatParcelUuid
-        )
+        ScanMode.PRESENCE_MONITORING -> buildHeartbeatFilters(context)
     }
 
-    private fun buildRaspberrySignalFilters(
-        context: Context,
-        serviceUuid: android.os.ParcelUuid
-    ): List<ScanFilter>? {
+    private fun buildOpenConfirmationFilters(context: Context): List<ScanFilter>? {
         val studentId = RelayStatusStore.studentId(context) ?: return null
         return listOf(
             ScanFilter.Builder()
                 .setServiceData(
-                    serviceUuid,
-                    studentId.toByteArray(Charsets.US_ASCII)
+                    BleConstants.openParcelUuid,
+                    BlePayloadCodec.openConfirmationFilterData(studentId),
+                    BlePayloadCodec.openConfirmationFilterMask()
+                )
+                .build()
+        )
+    }
+
+    private fun buildHeartbeatFilters(context: Context): List<ScanFilter>? {
+        RelayStatusStore.sessionToken(context) ?: return null
+        return listOf(
+            ScanFilter.Builder()
+                .setServiceData(
+                    BleConstants.heartbeatParcelUuid,
+                    byteArrayOf()
                 )
                 .build()
         )
@@ -117,24 +144,34 @@ object BleScanRegistrar {
     enum class ScanMode(
         val platformScanMode: Int,
         val successMessage: String,
-        val relayPhase: RelayStatusStore.RelayPhase
+        val relayPhase: RelayStatusStore.RelayPhase,
+        val missingDataMessage: String,
+        val pendingIntentRequestCode: Int
     ) {
         ENTRY_DETECTION(
             ScanSettings.SCAN_MODE_LOW_LATENCY,
             "0312 빠른 진입 감지가 활성화되었습니다.",
-            RelayStatusStore.RelayPhase.WATCHING_0312
+            RelayStatusStore.RelayPhase.WATCHING_0312,
+            "0312 스캔 필터를 만들 수 없습니다.",
+            3_120
         ),
         OPEN_CONFIRMATION(
             ScanSettings.SCAN_MODE_LOW_LATENCY,
             "2222 문 열림 확인 감지가 활성화되었습니다.",
-            RelayStatusStore.RelayPhase.REQUESTING_OPEN
+            RelayStatusStore.RelayPhase.REQUESTING_OPEN,
+            "저장된 학번이 없어 2222 스캔을 등록할 수 없습니다.",
+            22_220
         ),
         PRESENCE_MONITORING(
             ScanSettings.SCAN_MODE_BALANCED,
             "3333 저전력 근접 확인이 활성화되었습니다.",
-            RelayStatusStore.RelayPhase.INSIDE_ROOM
+            RelayStatusStore.RelayPhase.INSIDE_ROOM,
+            "세션 번호가 없어 3333 스캔을 등록할 수 없습니다.",
+            33_330
         )
     }
 
     data class RegistrationResult(val success: Boolean, val message: String)
+
+    private const val legacyPendingIntentRequestCode = 312
 }
