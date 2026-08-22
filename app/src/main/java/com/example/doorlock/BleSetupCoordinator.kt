@@ -8,6 +8,7 @@ import android.companion.AssociationRequest
 import android.companion.BluetoothLeDeviceFilter
 import android.companion.CompanionDeviceManager
 import android.content.Context
+import android.content.Intent
 import android.content.IntentSender
 import android.content.pm.PackageManager
 import android.os.Build
@@ -17,6 +18,7 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.example.doorlock.BleConstants
 import com.example.doorlock.BleRelayService
 import com.example.doorlock.BleScanRegistrar
@@ -94,7 +96,19 @@ class BleSetupCoordinator(private val activity: ComponentActivity) {
             hasRequiredBlePermissions()
         ) {
             if (!BleRelayService.isSessionActive()) {
-                registerBackgroundScan(showToast = showToast)
+                if (
+                    RelayStatusStore.relayPhase(activity) ==
+                    RelayStatusStore.RelayPhase.INSIDE_ROOM &&
+                    RelayStatusStore.sessionToken(activity) != null
+                ) {
+                    ContextCompat.startForegroundService(
+                        activity,
+                        Intent(activity, BleRelayService::class.java)
+                            .setAction(BleRelayService.ACTION_RESUME_PRESENCE)
+                    )
+                } else {
+                    registerBackgroundScan(showToast = showToast)
+                }
             }
         } else {
             beginConfiguration()

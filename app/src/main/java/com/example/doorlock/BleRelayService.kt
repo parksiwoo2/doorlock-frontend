@@ -81,6 +81,12 @@ class BleRelayService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent == null) {
+            ensureForegroundStarted()
+            resumePersistedPresenceSession(registerScan = true, heartbeatReceivedNow = false)
+            return START_STICKY
+        }
+
         when (intent?.action) {
             ACTION_STOP_ADVERTISING -> {
                 stopSession("사용자가 BLE 세션을 중지했습니다.")
@@ -107,16 +113,12 @@ class BleRelayService : Service() {
 
             ACTION_HEARTBEAT -> {
                 ensureForegroundStarted()
-                if (!hasMatchingSessionToken(intent)) {
-                    if (state == SessionState.IDLE) {
-                        stopSession("세션 번호가 일치하지 않는 3333 신호를 무시했습니다.")
-                    }
-                } else if (state == SessionState.MONITORING_PRESENCE) {
-                    lastHeartbeatAt = SystemClock.elapsedRealtime()
-                    Log.d(tag, "3333 heartbeat received")
-                } else if (state == SessionState.IDLE) {
-                    stopSession("활성 세션이 없어 3333 신호를 무시했습니다.")
-                }
+                handleHeartbeat(intent)
+            }
+
+            ACTION_RESUME_PRESENCE -> {
+                ensureForegroundStarted()
+                resumePersistedPresenceSession(registerScan = true, heartbeatReceivedNow = false)
             }
 
             ACTION_VISIBILITY_CHANGED -> {
@@ -133,7 +135,97 @@ class BleRelayService : Service() {
 
             else -> stopSelf(startId)
         }
-        return START_NOT_STICKY
+        return START_STICKY
+    }
+
+    private fun handleHeartbeat(intent: Intent) {
+        val receivedSessionToken = intent.getIntExtra(EXTRA_SESSION_TOKEN, -1)
+        if (state == SessionState.IDLE) {
+            val storedSessionToken = persistedPresenceSessionToken()
+            if (storedSessionToken == null || receivedSessionToken != storedSessionToken) {
+                stopSession("세션 번호가 일치하지 않는 3333 신호를 무시했습니다.")
+                return
+            }
+            if (!restorePresenceSession(
+                    storedSessionToken,
+                    registerScan = false,
+                    heartbeatReceivedNow = true
+                )
+            ) {
+                return
+            }
+            Log.d(tag, "3333 heartbeat received while restoring session")
+            return
+        }
+
+        if (!hasMatchingSessionToken(intent)) return
+        if (state == SessionState.MONITORING_PRESENCE) {
+            recordHeartbeat()
+            Log.d(tag, "3333 heartbeat received")
+        }
+    }
+
+    private fun resumePersistedPresenceSession(
+        registerScan: Boolean,
+        heartbeatReceivedNow: Boolean
+    ) {
+        val storedSessionToken = persistedPresenceSessionToken()
+        if (storedSessionToken == null) {
+            stopSession("복구할 heartbeat 세션이 없어 0312 감시로 돌아갑니다.")
+            return
+        }
+        if (!heartbeatReceivedNow) {
+            val storedHeartbeatAt = RelayStatusStore.lastHeartbeatElapsedRealtime(this)
+            if (!isHeartbeatFresh(storedHeartbeatAt, SystemClock.elapsedRealtime())) {
+                stopSession("저장된 heartbeat 세션이 이미 만료되어 0312 감시로 돌아갑니다.")
+                return
+            }
+        }
+        restorePresenceSession(storedSessionToken, registerScan, heartbeatReceivedNow)
+    }
+
+    private fun persistedPresenceSessionToken(): Int? =
+        RelayStatusStore.sessionToken(this)?.takeIf {
+            RelayStatusStore.relayPhase(this) == RelayStatusStore.RelayPhase.INSIDE_ROOM
+        }
+
+    private fun restorePresenceSession(
+        storedSessionToken: Int,
+        registerScan: Boolean,
+        heartbeatReceivedNow: Boolean
+    ): Boolean {
+        activeSession = true
+        state = SessionState.MONITORING_PRESENCE
+        sessionToken = storedSessionToken
+
+        if (registerScan) {
+            val scanResult = BleScanRegistrar.register(
+                this,
+                BleScanRegistrar.ScanMode.PRESENCE_MONITORING
+            )
+            RelayStatusStore.addEvent(this, "heartbeat 세션 복구: ${scanResult.message}")
+            if (!scanResult.success) {
+                stopSession("heartbeat 세션 복구 중 3333 스캔 등록 실패: ${scanResult.message}")
+                return false
+            }
+        }
+
+        if (heartbeatReceivedNow) {
+            recordHeartbeat()
+        } else {
+            lastHeartbeatAt = RelayStatusStore.lastHeartbeatElapsedRealtime(this) ?: return false
+        }
+        if (!startAdvertising(AdvertiseSettings.ADVERTISE_MODE_LOW_POWER, "복구된 저전력 1111 광고")) {
+            return false
+        }
+        updateNotification(
+            getString(R.string.notification_session_title),
+            getString(R.string.notification_session_text)
+        )
+        handler.removeCallbacks(heartbeatTimeoutCheckTask)
+        handler.postDelayed(heartbeatTimeoutCheckTask, heartbeatCheckIntervalMillis)
+        RelayStatusStore.addEvent(this, "heartbeat 세션 복구 완료: 세션 번호 $storedSessionToken")
+        return true
     }
 
     private fun startEntrySession() {
@@ -203,7 +295,7 @@ class BleRelayService : Service() {
             return
         }
 
-        lastHeartbeatAt = SystemClock.elapsedRealtime()
+        recordHeartbeat()
         if (!startAdvertising(AdvertiseSettings.ADVERTISE_MODE_LOW_POWER, "저전력 1111 광고")) {
             return
         }
@@ -330,6 +422,11 @@ class BleRelayService : Service() {
     private fun hasHeartbeatTimedOut(): Boolean =
         SystemClock.elapsedRealtime() - lastHeartbeatAt >= heartbeatTimeoutMillis
 
+    private fun recordHeartbeat() {
+        lastHeartbeatAt = SystemClock.elapsedRealtime()
+        RelayStatusStore.setLastHeartbeatElapsedRealtime(this, lastHeartbeatAt)
+    }
+
     private fun stopSession(message: String) {
         if (state != SessionState.IDLE) RelayStatusStore.addEvent(this, message)
         Log.i(tag, message)
@@ -417,14 +514,19 @@ class BleRelayService : Service() {
     }
 
     override fun onDestroy() {
-        val shouldRestoreEntryScan = state != SessionState.IDLE
+        val previousState = state
+        val shouldPreservePresenceSession =
+            previousState == SessionState.MONITORING_PRESENCE &&
+                sessionToken == persistedPresenceSessionToken()
         activeSession = false
         state = SessionState.IDLE
-        sessionToken = null
-        RelayStatusStore.setSessionToken(this, null)
         handler.removeCallbacksAndMessages(null)
         stopAdvertising()
-        if (shouldRestoreEntryScan) restoreEntryDetectionScan()
+        if (!shouldPreservePresenceSession) {
+            sessionToken = null
+            RelayStatusStore.setSessionToken(this, null)
+            if (previousState != SessionState.IDLE) restoreEntryDetectionScan()
+        }
         advertiser = null
         foregroundStarted = false
         super.onDestroy()
@@ -461,6 +563,7 @@ class BleRelayService : Service() {
         const val ACTION_ENTRY_SIGNAL = "com.example.doorlock.action.ENTRY_SIGNAL"
         const val ACTION_OPEN_CONFIRMED = "com.example.doorlock.action.OPEN_CONFIRMED"
         const val ACTION_HEARTBEAT = "com.example.doorlock.action.HEARTBEAT"
+        const val ACTION_RESUME_PRESENCE = "com.example.doorlock.action.RESUME_PRESENCE"
         const val ACTION_VISIBILITY_CHANGED = "com.example.doorlock.action.VISIBILITY_CHANGED"
         const val ACTION_STOP_ADVERTISING = "com.example.doorlock.action.STOP_ADVERTISING"
         const val EXTRA_STUDENT_ID = "student_id"
@@ -474,5 +577,10 @@ class BleRelayService : Service() {
         private const val channelId = "ble_relay_status"
         private const val notificationId = 2002
         private const val tag = "BleRelayService"
+
+        internal fun isHeartbeatFresh(lastHeartbeatAt: Long?, now: Long): Boolean =
+            lastHeartbeatAt != null &&
+                now >= lastHeartbeatAt &&
+                now - lastHeartbeatAt < heartbeatTimeoutMillis
     }
 }
