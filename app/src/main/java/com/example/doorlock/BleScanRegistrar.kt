@@ -124,7 +124,8 @@ object BleScanRegistrar {
             ScanFilter.Builder()
                 .setServiceData(
                     BleConstants.heartbeatParcelUuid,
-                    byteArrayOf()
+                    ByteArray(BlePayloadCodec.heartbeatRosterLength),
+                    ByteArray(BlePayloadCodec.heartbeatRosterLength)
                 )
                 .build()
         )
