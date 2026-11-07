@@ -12,7 +12,7 @@ import retrofit2.converter.gson.GsonConverterFactory
  * TODO: 실제 Backend Base URL로 교체
  */
 object NetworkConfig {
-    const val BASE_URL = "https://TODO-khlug-backend.example.com/"
+    const val BASE_URL = "https://api-v2.khlug.org/"
 }
 
 /**

@@ -14,7 +14,7 @@ data class Occupant(
 
 data class OccupantsResponse(
     @SerializedName("occupants") val occupants: List<Occupant>,
-    @SerializedName("lastSyncedAt") val lastSyncedAt: String
+    @SerializedName("lastSyncedAt") val lastSyncedAt: String?
 )
 
 interface OccupantApi {
